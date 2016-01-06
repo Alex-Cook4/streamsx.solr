@@ -1,0 +1,52 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrDocumentSink ;
+
+composite SolrDocAddSample
+{
+	graph
+		stream<rstring id, rstring location, rstring content_type, map<ustring,
+			ustring> atomicUpdateMap> Beacon_2_out0 = Custom()
+		{
+			logic
+				onProcess :
+				{
+					rstring content_type = "AlexLocation9" ;
+					rstring location = "newLocation2" ;
+					mutable map<ustring, ustring> actionMap = { } ;
+					insertM(actionMap,(ustring) "location",(ustring) "set") ;
+					insertM(actionMap,(ustring) "content_type",(ustring) "add") ;
+					for(int32 j in range(10))
+					{
+						printStringLn("Map: " +(rstring) actionMap) ;
+						submit({ id =(rstring)(500 + j), location = location, content_type =
+							content_type, atomicUpdateMap = actionMap }, Beacon_2_out0) ;
+						block(1.0) ;
+					}
+
+				}
+
+		}
+
+		
+		
+		(stream<rstring message> DocumentSink_2_out0) as DocumentSink_2 =
+			SolrDocumentSink(Beacon_2_out0)
+		{
+			param
+				uniqueIdentifierAttribute : "id" ;
+				solrURL : "http://g0601b02:8983/solr" ;
+				collection : "calls";
+		}
+
+		() as Custom_3 = Custom(DocumentSink_2_out0)
+		{
+			logic onTuple DocumentSink_2_out0 : {
+				printStringLn("Error : " + message);
+			}
+		}
+
+}
+
+
+

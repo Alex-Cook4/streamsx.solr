@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" output="impl/java/bin" path="impl/java/src"/>
+	<classpathentry kind="src" path=".apt_generated">
+		<attributes>
+			<attribute name="optional" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="opt/downloaded/commons-io-2.4.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/httpclient-4.4.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/httpcore-4.4.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/httpmime-4.4.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/jcl-over-slf4j-1.7.7.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/jul-to-slf4j-1.7.7.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/log4j-1.2.17.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/noggit-0.6.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/slf4j-api-1.7.7.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/slf4j-log4j12-1.7.7.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/solr-solrj-5.3.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/stax2-api-3.1.4.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/woodstox-core-asl-4.4.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/zookeeper-3.4.6.jar"/>
+	<classpathentry kind="lib" path="/homes/hny5/cooka/gmInfoSphereStreams/4.0.1.0/lib/com.ibm.streams.operator.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="file:////homes/hny5/cooka/gmInfoSphereStreams/4.0.1.0//doc/spl/operator/api/java-eclipse/api"/>
+			<attribute name="optional" value="false"/>
+			<attribute name="STREAMS_INSTALL_SIGNATURE" value="/homes/hny5/cooka/gmInfoSphereStreams/4.0.1.0/ [4.0.1.0]"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="output" path="impl/java/bin"/>
+</classpath>

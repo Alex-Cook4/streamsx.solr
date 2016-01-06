@@ -1,0 +1,41 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrQuery ;
+
+composite SolrQuerySample
+{
+	graph
+		(stream<rstring queryLogic> Beacon_1_out0) as Beacon_1 = Beacon()
+		{
+			logic
+				state :
+				{
+					mutable int32 stateVariable = 0 ;
+				}
+
+			param
+				period : 3.0 ;
+			output
+				Beacon_1_out0 : queryLogic = "q=*:*" ;
+		}
+
+		(stream<rstring response> SolrQuery_2_out0) as SolrQuery_2 =
+			SolrQuery(Beacon_1_out0)
+		{
+			param 
+				solrURL : "http://g0601b02:8983/solr";
+				collection : "transcriptions";
+				numberOfRows : 5; 
+				omitHeader : false;
+				
+		}
+
+		() as Custom_3 = Custom(SolrQuery_2_out0)
+		{
+			logic onTuple SolrQuery_2_out0 : {
+				printStringLn(response);
+			}
+		}
+
+}
+
