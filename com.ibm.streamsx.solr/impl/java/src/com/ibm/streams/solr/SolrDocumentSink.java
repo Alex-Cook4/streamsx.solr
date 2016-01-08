@@ -13,6 +13,7 @@ import com.ibm.streams.operator.OutputTuple;
 import com.ibm.streams.operator.StreamingInput;
 import com.ibm.streams.operator.StreamingOutput;
 import com.ibm.streams.operator.Tuple;
+import com.ibm.streams.operator.TupleAttribute;
 import com.ibm.streams.operator.Type.MetaType;
 import com.ibm.streams.operator.log4j.TraceLevel;
 import com.ibm.streams.operator.model.InputPortSet;
@@ -55,7 +56,7 @@ description="Java Operator SolrDocumentSink")
 @OutputPorts(@OutputPortSet(description="Error Port" , optional=true) ) 
 public class SolrDocumentSink extends AbstractOperator {
 	SolrClient solrClient; 
-	String uniqueIdentifierAttribute = "id";
+	TupleAttribute<Tuple, String> uniqueIdentifierAttribute;
 	
 	private final Logger trace = Logger.getLogger(SolrDocumentSink.class
 			.getCanonicalName());
@@ -100,7 +101,7 @@ public class SolrDocumentSink extends AbstractOperator {
     	SolrInputDocument doc = new SolrInputDocument();
     	
     	try{
-    		doc.addField(uniqueIdentifierAttribute, tuple.getObject(uniqueIdentifierAttribute));
+    		doc.addField(uniqueIdentifierAttribute.getAttribute().getName(), uniqueIdentifierAttribute.getValue(tuple));
     	} catch (Exception e) {
     		e.printStackTrace();
     		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
@@ -151,7 +152,7 @@ public class SolrDocumentSink extends AbstractOperator {
 	}
 
 	@Parameter(optional = false)
-    public void setUniqueIdentifierAttribute(String attributeName){
+    public void setUniqueIdentifierAttribute(TupleAttribute<Tuple, String> attributeName){
     	uniqueIdentifierAttribute = attributeName;
     }
     

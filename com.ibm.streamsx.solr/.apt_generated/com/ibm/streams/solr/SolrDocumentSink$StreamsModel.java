@@ -19,7 +19,7 @@ public void setSolrURL(java.lang.String value) {}
 
 @com.ibm.streams.operator.model.Parameter(optional=false)
 @com.ibm.streams.operator.internal.model.MethodParameters({"attributeName"})
-public void setUniqueIdentifierAttribute(java.lang.String attributeName) {}
+public void setUniqueIdentifierAttribute(com.ibm.streams.operator.TupleAttribute<com.ibm.streams.operator.Tuple,java.lang.String> attributeName) {}
 
 @com.ibm.streams.operator.model.Parameter(optional=false)
 @com.ibm.streams.operator.internal.model.MethodParameters({"value"})

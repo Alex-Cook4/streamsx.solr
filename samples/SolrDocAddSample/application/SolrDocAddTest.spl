@@ -19,7 +19,7 @@ composite SolrDocAddSample
 					for(int32 j in range(10))
 					{
 						printStringLn("Map: " +(rstring) actionMap) ;
-						submit({ id =(rstring)(500 + j), location = location, content_type =
+						submit({ id =(rstring)(800 + j), location = location, content_type =
 							content_type, atomicUpdateMap = actionMap }, Beacon_2_out0) ;
 						block(1.0) ;
 					}
@@ -29,12 +29,12 @@ composite SolrDocAddSample
 		}
 
 		
-		
+		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8983/solr/calls/select/?wt=json&q=*:*&rows=200
 		(stream<rstring message> DocumentSink_2_out0) as DocumentSink_2 =
 			SolrDocumentSink(Beacon_2_out0)
 		{
 			param
-				uniqueIdentifierAttribute : "id" ;
+				uniqueIdentifierAttribute : id ;
 				solrURL : "http://g0601b02:8983/solr" ;
 				collection : "calls";
 		}

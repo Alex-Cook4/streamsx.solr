@@ -28,5 +28,8 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="opt/downloaded/lucene-analyzers-common-5.3.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/lucene-core-5.3.1.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded"/>
 	<classpathentry kind="output" path="impl/java/bin"/>
 </classpath>

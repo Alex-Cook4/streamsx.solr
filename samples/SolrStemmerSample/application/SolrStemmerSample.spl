@@ -1,0 +1,35 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrStemmer ;
+
+composite SolrStemmerSample
+{
+	graph
+		(stream<rstring wordsToStem> Beacon_1_out0) as Beacon_1 = Beacon()
+		{
+			param
+				period : 3.0 ;
+			output
+				Beacon_1_out0 : wordsToStem = "apples, bananas, hearing coding loving killing making be walked talked sorted love glove" ; 
+		}
+
+		(stream<rstring stemmedWords> SolrQuery_2_out0) as SolrQuery_2 =
+			SolrStemmer(Beacon_1_out0)
+		{
+			param 
+				language : "english";
+				stopWordFile : getThisToolkitDir() + "/etc/stopwords.txt";
+				synonymFile :  getThisToolkitDir() + "/etc/synonyms.txt";
+				//vmArg : "-cp /homes/hny5/cooka/gitSolr/streamsx.solr/com.ibm.streamsx.solr/opt/downloaded/";
+				
+		}
+
+		() as Custom_3 = Custom(SolrQuery_2_out0)
+		{
+			logic onTuple SolrQuery_2_out0 : {
+				printStringLn(stemmedWords);
+			}
+		}
+
+}
+
