@@ -50,7 +50,7 @@ import com.ibm.streams.operator.model.SharedLoader;
 description="Java Operator SolrStemmer")
 @InputPorts({@InputPortSet(description="Port that ingests tuples", cardinality=1, optional=false, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious), @InputPortSet(description="Optional input ports", optional=true, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious)})
 @OutputPorts({@OutputPortSet(description="Port that produces tuples", cardinality=1, optional=false, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating), @OutputPortSet(description="Optional output ports", optional=true, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating)})
-@Libraries(value = {"opt/downloaded/*", "opt/downloaded/stopwords.txt"})
+@Libraries(value = {"opt/downloaded/*", "@STREAMSX_SOLR@"})
 @SharedLoader
 public class SolrStemmer extends AbstractOperator {
 	private String luceneMatchVersion = "LUCENE_51";
@@ -75,13 +75,6 @@ public class SolrStemmer extends AbstractOperator {
 	public synchronized void initialize(OperatorContext context)
 			throws Exception {
 		super.initialize(context);
-		ClassLoader cl = ClassLoader.getSystemClassLoader();
-
-        URL[] urls = ((URLClassLoader)cl).getURLs();
-
-        for(URL url: urls){
-        	System.out.println(url.getFile());
-        }
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " initializing in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
         stemmerEngine = new SolrStemmerEngine(luceneMatchVersion, language, synonymFile, stopWordFile, ignoreCase, expand);
 	}
