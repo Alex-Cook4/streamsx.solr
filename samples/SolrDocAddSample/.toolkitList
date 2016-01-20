@@ -1,5 +1,6 @@
 SolrDocAdSample/1.0.0
 spl/1.2.1
+SolrQuerySample/1.0.0
 SolrStemmerSample/1.0.0
 com.ibm.streams.cep/2.0.0
 com.ibm.streams.dataexplorer/2.0.0
@@ -17,3 +18,4 @@ com.ibm.streamsx.hdfs/2.0.0
 com.ibm.streamsx.inet/2.0.1
 com.ibm.streamsx.messaging/2.0.1
 com.ibm.streamsx.solr/1.0.0
+com.ibm.streamsx.speech2text/1.0.0

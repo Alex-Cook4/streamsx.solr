@@ -12,13 +12,12 @@ public class StemmerTest {
 	private static String stopWordFile = "stopwords.txt";
 	private static Boolean ignoreCase = true;
 	private static Boolean expand = false;
+	private static String stemmerType = "snowball";
 	/**
 	 * @param args
-	 * @throws IOException 
-	 * @throws ClassNotFoundException 
-	 * @throws InterruptedException 
+	 * @throws Exception 
 	 */
-	public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+	public static void main(String[] args) throws Exception {
 		ClassLoader cl = ClassLoader.getSystemClassLoader();
 
         URL[] urls = ((URLClassLoader)cl).getURLs();
@@ -28,7 +27,7 @@ public class StemmerTest {
         }
 		System.out.println("Working Directory = " +
 	              System.getProperty("user.dir"));
-		solrStemmerEngine = new SolrStemmerEngine(luceneMatchVersion, language, synonymFile, stopWordFile, ignoreCase, expand);
+		solrStemmerEngine = new SolrStemmerEngine(stemmerType, luceneMatchVersion, language, synonymFile, stopWordFile, ignoreCase, expand);
 		String fullWords = "apples, bananas, hearing coding loving killing making be walked talked sorted love glove" ;  
 		String stemmedTokens = solrStemmerEngine.getStems(fullWords);
 		System.out.println(stemmedTokens);

@@ -2,25 +2,29 @@ namespace application ;
 
 use com.ibm.streamsx.solr::SolrDocumentSink ;
 
+/*
+ * To use this sample, you can start Solr with the default Solr example (5.3.1) 
+ * 		bin/solr start -p 8983 -s "example/techproducts/solr"
+ * This will create a collection called techproducts. 
+ */
 composite SolrDocAddSample
 {
 	graph
-		stream<rstring id, rstring location, rstring content_type, map<ustring,
+		stream<rstring id, rstring name, rstring features, map<ustring,
 			ustring> atomicUpdateMap> Beacon_2_out0 = Custom()
 		{
 			logic
 				onProcess :
 				{
-					rstring content_type = "AlexLocation9" ;
-					rstring location = "newLocation2" ;
+					rstring features = "This is an extra new feature!" ;
+					rstring name = "Alex" ;
 					mutable map<ustring, ustring> actionMap = { } ;
-					insertM(actionMap,(ustring) "location",(ustring) "set") ;
-					insertM(actionMap,(ustring) "content_type",(ustring) "add") ;
+					insertM(actionMap,(ustring) "name",(ustring) "set") ;
+					insertM(actionMap,(ustring) "features",(ustring) "add") ;
 					for(int32 j in range(10))
 					{
-						printStringLn("Map: " +(rstring) actionMap) ;
-						submit({ id =(rstring)(800 + j), location = location, content_type =
-							content_type, atomicUpdateMap = actionMap }, Beacon_2_out0) ;
+						submit({ id =(rstring)(800 + j), name = name, features =
+							features, atomicUpdateMap = actionMap }, Beacon_2_out0) ;
 						block(1.0) ;
 					}
 
@@ -29,19 +33,19 @@ composite SolrDocAddSample
 		}
 
 		
-		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8983/solr/calls/select/?wt=json&q=*:*&rows=200
-		(stream<rstring message> DocumentSink_2_out0) as DocumentSink_2 =
+		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8983/solr/techproducts/select/?wt=json&q=*:*&rows=200
+		(stream<rstring message> ErrorPort) as DocumentSink_2 =
 			SolrDocumentSink(Beacon_2_out0)
 		{
 			param
 				uniqueIdentifierAttribute : id ;
 				solrURL : "http://g0601b02:8983/solr" ;
-				collection : "calls";
+				collection : "techproducts";
 		}
 
-		() as Custom_3 = Custom(DocumentSink_2_out0)
+		() as Custom_3 = Custom(ErrorPort)
 		{
-			logic onTuple DocumentSink_2_out0 : {
+			logic onTuple ErrorPort : {
 				printStringLn("Error : " + message);
 			}
 		}

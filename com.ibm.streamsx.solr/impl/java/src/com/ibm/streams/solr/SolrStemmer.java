@@ -2,9 +2,6 @@
 package com.ibm.streams.solr;
 
 
-import java.net.URL;
-import java.net.URLClassLoader;
-
 import org.apache.log4j.Logger;
 
 import com.ibm.streams.operator.AbstractOperator;
@@ -59,12 +56,13 @@ public class SolrStemmer extends AbstractOperator {
 	private String stopWordFile = "stopwords.txt";
 	private Boolean ignoreCase = true;
 	private Boolean expand = false;
-	
+	private String stemmerType = "kStem";
 	
 	private SolrStemmerEngine stemmerEngine;
 	
 	private final Logger trace = Logger.getLogger(SolrStemmer.class
 			.getCanonicalName());
+	
 	
     /**
      * Initialize this operator. Called once before any tuples are processed.
@@ -76,7 +74,7 @@ public class SolrStemmer extends AbstractOperator {
 			throws Exception {
 		super.initialize(context);
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " initializing in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
-        stemmerEngine = new SolrStemmerEngine(luceneMatchVersion, language, synonymFile, stopWordFile, ignoreCase, expand);
+        stemmerEngine = new SolrStemmerEngine(stemmerType, luceneMatchVersion, language, synonymFile, stopWordFile, ignoreCase, expand);
 	}
 
     /**
@@ -111,8 +109,7 @@ public class SolrStemmer extends AbstractOperator {
         
 		
 		String wordStems = stemmerEngine.getStems(wordsForStemming);
-		trace.log(TraceLevel.INFO, wordStems);
-		System.out.println(wordStems);        
+		trace.log(TraceLevel.INFO, wordStems);      
 		
 		outTuple.setString(0, wordStems);
         outStream.submit(outTuple);
@@ -149,6 +146,11 @@ public class SolrStemmer extends AbstractOperator {
     @Parameter(optional = true)
     public void setStopWordFile(String value){
     	stopWordFile = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setStemmerType(String value){
+    	stemmerType = value;
     }
     
     @Parameter(optional = true)

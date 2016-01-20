@@ -109,8 +109,7 @@ public class SolrQuery extends AbstractOperator {
 			queryString = queryLogic;
 		}
 		String queryResponse = queryEngine.sendQuery(queryString);
-		trace.log(TraceLevel.INFO, queryResponse);
-		System.out.println(queryResponse);        
+		trace.log(TraceLevel.INFO, queryResponse);    
 		
 		outTuple.setString(0, queryResponse);
         outStream.submit(outTuple);

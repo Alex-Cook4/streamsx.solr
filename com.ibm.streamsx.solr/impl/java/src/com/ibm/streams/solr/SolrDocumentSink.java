@@ -63,6 +63,8 @@ public class SolrDocumentSink extends AbstractOperator {
 	private boolean validErrorPort = false;
 	private String collection;
 	private String solrURL;
+	private int bufferedDocumentSize;
+	
     /**
      * Initialize this operator. Called once before any tuples are processed.
      * @param context OperatorContext for this operator.
@@ -107,6 +109,10 @@ public class SolrDocumentSink extends AbstractOperator {
     		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
     		submitToErrorPort(e);
     	}
+    	
+    	/*
+    	 * Need to add code 
+    	 */
     	
     	@SuppressWarnings("unchecked")
 		Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap("atomicUpdateMap");
@@ -164,6 +170,11 @@ public class SolrDocumentSink extends AbstractOperator {
     @Parameter(optional = false)
     public void setCollection(String value){
     	collection = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setBufferedDocumentSize(int value){
+    	bufferedDocumentSize = value;
     }
 
     /**

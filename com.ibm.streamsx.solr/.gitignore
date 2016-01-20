@@ -1,3 +1,5 @@
 /output/
 /opt/downloaded/
 /impl/lib/*.jar
+com.ibm.streamsx.solr
+.apt_generated
