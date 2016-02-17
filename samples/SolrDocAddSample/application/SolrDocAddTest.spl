@@ -4,12 +4,16 @@ use com.ibm.streamsx.solr::SolrDocumentSink ;
 
 /*
  * To use this sample, you can start Solr with the default Solr example (5.3.1) 
- * 		bin/solr start -p 8983 -s "example/techproducts/solr"
+ * 		bin/solr start -p 8984 -s "example/techproducts/solr"
  * This will create a collection called techproducts. 
  */
 composite SolrDocAddSample
 {
 	graph
+	
+		/*Generate attributes as well as map.
+		 * Notice: The unique id is not part of the map (it is specified in the operator parameters.
+		 */ 
 		stream<rstring id, rstring name, rstring features, map<ustring,
 			ustring> atomicUpdateMap> Beacon_2_out0 = Custom()
 		{
@@ -17,7 +21,7 @@ composite SolrDocAddSample
 				onProcess :
 				{
 					rstring features = "This is an extra new feature!" ;
-					rstring name = "Alex" ;
+					rstring name = "MultiDockTest" ;
 					mutable map<ustring, ustring> actionMap = { } ;
 					insertM(actionMap,(ustring) "name",(ustring) "set") ;
 					insertM(actionMap,(ustring) "features",(ustring) "add") ;
@@ -33,14 +37,16 @@ composite SolrDocAddSample
 		}
 
 		
-		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8983/solr/techproducts/select/?wt=json&q=*:*&rows=200
+		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8984/solr/techproducts/select/?wt=json&q=*:*&rows=200
 		(stream<rstring message> ErrorPort) as DocumentSink_2 =
 			SolrDocumentSink(Beacon_2_out0)
 		{
 			param
 				uniqueIdentifierAttribute : id ;
-				solrURL : "http://g0601b02:8983/solr" ;
+				solrURL : "http://g0601b02:8984/solr" ;
 				collection : "techproducts";
+				documentCommitSize : 10;
+				maxDocumentBufferAge : 3000;
 		}
 
 		() as Custom_3 = Custom(ErrorPort)

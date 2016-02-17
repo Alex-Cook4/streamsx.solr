@@ -1,0 +1,24 @@
+toolkit.xml
+impl/nl/include/*.h
+*.pm
+.toolkitList
+doc
+
+samples/*/output
+samples/*/toolkit.xml
+/samples/*/doc
+
+## java excludes
+*.class
+
+# exclude generated Java primitive operator model files
+*$StreamsModel.java
+
+# Package Files #
+com.ibm.streamsx.solr/lib/*.jar
+com.ibm.streamsx.solr/impl/lib/*.jar
+*.war
+*.ear
+
+# temporary directories
+tmp

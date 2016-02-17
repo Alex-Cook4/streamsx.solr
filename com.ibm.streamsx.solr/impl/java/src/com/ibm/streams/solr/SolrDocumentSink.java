@@ -2,8 +2,13 @@
 package com.ibm.streams.solr;
 
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import org.apache.log4j.Logger;
 
@@ -26,32 +31,14 @@ import com.ibm.streams.operator.model.OutputPorts;
 import com.ibm.streams.operator.model.Parameter;
 import com.ibm.streams.operator.model.PrimitiveOperator;
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument; 
 import org.apache.solr.client.solrj.response.UpdateResponse;
 
-/**
- * Class for an operator that consumes tuples and does not produce an output stream. 
- * This pattern supports a number of input streams and no output streams. 
- * <P>
- * The following event methods from the Operator interface can be called:
- * </p>
- * <ul>
- * <li><code>initialize()</code> to perform operator initialization</li>
- * <li>allPortsReady() notification indicates the operator's ports are ready to process and submit tuples</li> 
- * <li>process() handles a tuple arriving on an input port 
- * <li>processPuncuation() handles a punctuation mark arriving on an input port 
- * <li>shutdown() to shutdown the operator. A shutdown request may occur at any time, 
- * such as a request to stop a PE or cancel a job. 
- * Thus the shutdown() may occur while the operator is processing tuples, punctuation marks, 
- * or even during port ready notification.</li>
- * </ul>
- * <p>With the exception of operator initialization, all the other events may occur concurrently with each other, 
- * which lead to these methods being called concurrently by different threads.</p> 
- */
 @Libraries("opt/downloaded/*")
 @PrimitiveOperator(name="SolrDocumentSink", namespace="com.ibm.streamsx.solr",
-description="Java Operator SolrDocumentSink")
+description = SolrDocumentSink.DESCRIPTION )
 @InputPorts({@InputPortSet(description="Port that ingests tuples", cardinality=1, optional=false, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious)})
 @OutputPorts(@OutputPortSet(description="Error Port" , optional=true) ) 
 public class SolrDocumentSink extends AbstractOperator {
@@ -63,13 +50,50 @@ public class SolrDocumentSink extends AbstractOperator {
 	private boolean validErrorPort = false;
 	private String collection;
 	private String solrURL;
-	private int bufferedDocumentSize;
+	private int documentCommitSize = 1;
+	private List<SolrInputDocument> docBuffer;
+	private int maxDocumentBufferAge = 10000;
+	private Timer docBufferTimer; 
+	public static final String DESCRIPTION = 
+			"This operator takes in a set of attributes and a map on its import port. "
+			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
+			+ "The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. "
+			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.";
 	
-    /**
-     * Initialize this operator. Called once before any tuples are processed.
-     * @param context OperatorContext for this operator.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
+	@Parameter(optional = true, description = "Unique id attribute. If non is provided, one will automatically be generated.")
+    public void setUniqueIdentifierAttribute(TupleAttribute<Tuple, String> attributeName){
+    	uniqueIdentifierAttribute = attributeName;
+    }
+    
+    @Parameter(optional = false, description = "URL of Solr server. Example: http://g0601b02:8984/solr")
+    public void setSolrURL(String value){
+    	solrURL = value;
+    }
+    
+    @Parameter(optional = false, description = "Solr collection to add documents to.")
+    public void setCollection(String value){
+    	collection = value;
+    }
+    
+    @Parameter(optional = true, description="Number of tuples queued up before committing to Solr. Default: 1.")
+    public void setDocumentCommitSize(int value){
+    	documentCommitSize = value;
+    }
+    
+    @Parameter(optional = true, description="Max time allowed forthe document buffer to fill before automatically flushed. Time in milliseconds. Default: 1000.")
+    public void setMaxDocumentBufferAge(int value){
+    	maxDocumentBufferAge  = value;
+    }
+
+    @Override
+    public synchronized void shutdown() throws Exception {
+        OperatorContext context = getOperatorContext();
+        Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " shutting down in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
+        docBufferTimer.cancel();
+        solrClient.close();       
+        super.shutdown();
+    }
+	
 	@Override
 	public synchronized void initialize(OperatorContext context)
 			throws Exception {
@@ -89,16 +113,15 @@ public class SolrDocumentSink extends AbstractOperator {
         if (!validErrorPort){
         	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
         }
+        docBuffer = new ArrayList<SolrInputDocument>();
+        docBufferTimer = new Timer();
+        docBufferTimer.schedule(new CommitAndClearAgedDocBuffer(), maxDocumentBufferAge);
+        		
 	}
 
-    /**
-     * Process an incoming tuple that arrived on the specified port.
-     * @param stream Port the tuple is arriving on.
-     * @param tuple Object representing the incoming tuple.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
+
     @Override
-    public void process(StreamingInput<Tuple> stream, Tuple tuple)
+    public synchronized void process(StreamingInput<Tuple> stream, Tuple tuple)
             throws Exception {    	
     	SolrInputDocument doc = new SolrInputDocument();
     	
@@ -110,9 +133,6 @@ public class SolrDocumentSink extends AbstractOperator {
     		submitToErrorPort(e);
     	}
     	
-    	/*
-    	 * Need to add code 
-    	 */
     	
     	@SuppressWarnings("unchecked")
 		Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap("atomicUpdateMap");
@@ -131,62 +151,66 @@ public class SolrDocumentSink extends AbstractOperator {
 	        }
     	}
     	
-    	//Add the document
-    	try {
-    		UpdateResponse response = solrClient.add(doc);
-    		trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.getStatus());
-    		solrClient.commit();
-    	} catch (Exception e){
-    		e.printStackTrace();
-    		trace.log(TraceLevel.ERROR, "Error while committing document: " + e.getMessage() );
-    		submitToErrorPort(e);
+    	docBuffer.add(doc);
+    	
+    	if (docBuffer.size() >= documentCommitSize){
+    		System.out.println("Comitting from process...");
+	    	//Add the documents then clear
+	    	commitAndClearBuffer();
+	    	
     	}
     	
     }
-    
-    private void submitToErrorPort(Exception e) {
-    	if(validErrorPort){
-    	StreamingOutput<OutputTuple> streamingOutput = getOutput(0);
-		OutputTuple otup = streamingOutput.newTuple();
-    	otup.setString(0, e.getMessage());
-    	try {
-			streamingOutput.submit(otup);
-		} catch (Exception e1) {
-			e1.printStackTrace();
+
+	private synchronized void commitAndClearBuffer() {
+		if(!docBuffer.isEmpty()){
+			try {
+				sendDocuments(docBuffer);
+			} catch (Exception e){
+				e.printStackTrace();
+				trace.log(TraceLevel.ERROR, "Error while committing documents: " + e.getMessage() );
+				submitToErrorPort(e);
+			}
+			resetDocBuffer();
 		}
-    	}
 	}
 
-	@Parameter(optional = false)
-    public void setUniqueIdentifierAttribute(TupleAttribute<Tuple, String> attributeName){
-    	uniqueIdentifierAttribute = attributeName;
-    }
-    
-    @Parameter(optional = false)
-    public void setSolrURL(String value){
-    	solrURL = value;
-    }
-    
-    @Parameter(optional = false)
-    public void setCollection(String value){
-    	collection = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setBufferedDocumentSize(int value){
-    	bufferedDocumentSize = value;
-    }
+	private void resetDocBuffer() {
+		docBuffer.clear();
+		docBufferTimer.cancel();
+		docBufferTimer = new Timer();
+		docBufferTimer.schedule(new CommitAndClearAgedDocBuffer(), maxDocumentBufferAge);
+	}
 
-    /**
-     * Shutdown this operator.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
-    @Override
-    public synchronized void shutdown() throws Exception {
-        OperatorContext context = getOperatorContext();
-        Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " shutting down in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
-        solrClient.close();
-        super.shutdown();
+	private void sendDocuments(List<SolrInputDocument> docBuffer2) throws SolrServerException, IOException {
+		UpdateResponse response = solrClient.add(docBuffer2);
+		if(trace.isInfoEnabled())
+			trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.getStatus());
+		solrClient.commit();
+		System.out.println("Comitting...");
+	}
+    
+    private void submitToErrorPort(Exception e) {
+		if (validErrorPort) {
+			StreamingOutput<OutputTuple> streamingOutput = getOutput(0);
+			OutputTuple otup = streamingOutput.newTuple();
+			otup.setString(0, e.getMessage());
+			try {
+				streamingOutput.submit(otup);
+			} catch (Exception e1) {
+				e1.printStackTrace();
+			}
+		}
+	}
+    
+    
+    class CommitAndClearAgedDocBuffer extends TimerTask {
+		@Override
+		public void run() {
+			System.out.println("Comitting from TimerTask...");
+			commitAndClearBuffer();
+		}     	
     }
+	
     
 }
