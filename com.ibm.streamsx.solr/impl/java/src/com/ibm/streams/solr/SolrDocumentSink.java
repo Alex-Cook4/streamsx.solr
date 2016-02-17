@@ -54,11 +54,14 @@ public class SolrDocumentSink extends AbstractOperator {
 	private List<SolrInputDocument> docBuffer;
 	private int maxDocumentBufferAge = 10000;
 	private Timer docBufferTimer; 
+	private final String MAP_ATTRIBUTE = "atomicUpdateMap";
+	private boolean inputMapExists = true;
 	public static final String DESCRIPTION = 
 			"This operator takes in a set of attributes and a map on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
 			+ "The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. "
-			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.";
+			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter."
+			+ "If no map is provided, all attributes will be committed as if doing a set.";
 	
 	@Parameter(optional = true, description = "Unique id attribute. If non is provided, one will automatically be generated.")
     public void setUniqueIdentifierAttribute(TupleAttribute<Tuple, String> attributeName){
@@ -75,12 +78,14 @@ public class SolrDocumentSink extends AbstractOperator {
     	collection = value;
     }
     
-    @Parameter(optional = true, description="Number of tuples queued up before committing to Solr. Default: 1.")
+    @Parameter(optional = true, description="Number of tuples queued up before committing to Solr. Default: 1. If -1, buffer will never "
+    		+ "be flushed based on size and will rely on soley on time-based flushing.")
     public void setDocumentCommitSize(int value){
     	documentCommitSize = value;
     }
     
-    @Parameter(optional = true, description="Max time allowed forthe document buffer to fill before automatically flushed. Time in milliseconds. Default: 1000.")
+    @Parameter(optional = true, description="Max time allowed for the document buffer to fill before automatically flushing. "
+    		+ "Time in milliseconds. Default: 1000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.")
     public void setMaxDocumentBufferAge(int value){
     	maxDocumentBufferAge  = value;
     }
@@ -100,8 +105,13 @@ public class SolrDocumentSink extends AbstractOperator {
     	// Must call super.initialize(context) to correctly setup an operator.
 		super.initialize(context);
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " initializing in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
-        String collectionURL = solrURL + "/" + collection;
+        String collectionURL = getCollectionURL();
         solrClient = new HttpSolrClient(collectionURL);
+        
+        if (context.getStreamingInputs().get(0).getStreamSchema().getAttributeIndex(MAP_ATTRIBUTE) < 0){
+        	inputMapExists = false;
+        }
+        
         if (!context.getStreamingOutputs().isEmpty()){
         	StreamingOutput<OutputTuple> output = context.getStreamingOutputs().get(0);
         	if (output.getStreamSchema().getAttribute(0).getType().getMetaType() ==  MetaType.RSTRING){
@@ -115,8 +125,14 @@ public class SolrDocumentSink extends AbstractOperator {
         }
         docBuffer = new ArrayList<SolrInputDocument>();
         docBufferTimer = new Timer();
-        docBufferTimer.schedule(new CommitAndClearAgedDocBuffer(), maxDocumentBufferAge);
-        		
+        resetDocBuffer();        		
+	}
+
+	private String getCollectionURL() {
+		if (!solrURL.endsWith("/"))
+			solrURL += "/";
+		String collectionURL = solrURL + collection;
+		return collectionURL;
 	}
 
 
@@ -125,42 +141,56 @@ public class SolrDocumentSink extends AbstractOperator {
             throws Exception {    	
     	SolrInputDocument doc = new SolrInputDocument();
     	
-    	try{
+    	if (inputMapExists){
+    		addUniqueIdentifierFieldToDocument(tuple, doc);
+    		
+	    	@SuppressWarnings("unchecked")
+			Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap(MAP_ATTRIBUTE);
+	    	
+	    	for (Map.Entry<String, String> entry : atomicUpdateMap.entrySet()){
+	    		addFieldToDocument(tuple, doc, entry);
+	    	}
+    	} else {
+    		//default action is to set all attributes
+    		for (String attributeName : tuple.getStreamSchema().getAttributeNames()){
+    			doc.addField(attributeName, tuple.getObject(attributeName));
+    		}
+    	}
+    	
+    	docBuffer.add(doc);
+    	
+    	if (documentCommitSize > 0
+    			&& docBuffer.size() >= documentCommitSize){
+    		System.out.println("Comitting from process...");
+	    	//Add the documents then clear
+	    	commitAndClearBuffer();
+    	}
+    	
+    }
+
+	private void addUniqueIdentifierFieldToDocument(Tuple tuple, SolrInputDocument doc) {
+		try{
     		doc.addField(uniqueIdentifierAttribute.getAttribute().getName(), uniqueIdentifierAttribute.getValue(tuple));
     	} catch (Exception e) {
     		e.printStackTrace();
     		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
     		submitToErrorPort(e);
     	}
-    	
-    	
-    	@SuppressWarnings("unchecked")
-		Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap("atomicUpdateMap");
-    	
-    	for (Map.Entry<String, String> entry : atomicUpdateMap.entrySet()){
-    		Map<String,Object> fieldModifier = new HashMap<>(1);
-    		String attributeName = entry.getKey();
-    		String atomicAction = entry.getValue();
-	        fieldModifier.put(atomicAction, tuple.getObject(attributeName));
-	        try {
-	        	doc.addField(attributeName, fieldModifier);
-	        } catch (Exception e){
-	        	e.printStackTrace();
-	        	trace.log(TraceLevel.ERROR, "Failed to add field to document: " + e.getMessage());
-	        	submitToErrorPort(e);
-	        }
-    	}
-    	
-    	docBuffer.add(doc);
-    	
-    	if (docBuffer.size() >= documentCommitSize){
-    		System.out.println("Comitting from process...");
-	    	//Add the documents then clear
-	    	commitAndClearBuffer();
-	    	
-    	}
-    	
-    }
+	}
+
+	private void addFieldToDocument(Tuple tuple, SolrInputDocument doc, Map.Entry<String, String> entry) {
+		Map<String,Object> fieldModifier = new HashMap<>(1);
+		String attributeName = entry.getKey();
+		String atomicAction = entry.getValue();
+		fieldModifier.put(atomicAction, tuple.getObject(attributeName));
+		try {
+			doc.addField(attributeName, fieldModifier);
+		} catch (Exception e){
+			e.printStackTrace();
+			trace.log(TraceLevel.ERROR, "Failed to add field to document: " + e.getMessage());
+			submitToErrorPort(e);
+		}
+	}
 
 	private synchronized void commitAndClearBuffer() {
 		if(!docBuffer.isEmpty()){
@@ -177,9 +207,15 @@ public class SolrDocumentSink extends AbstractOperator {
 
 	private void resetDocBuffer() {
 		docBuffer.clear();
-		docBufferTimer.cancel();
-		docBufferTimer = new Timer();
-		docBufferTimer.schedule(new CommitAndClearAgedDocBuffer(), maxDocumentBufferAge);
+		resetDocBufferTimer();
+	}
+
+	private void resetDocBufferTimer() {
+		if (maxDocumentBufferAge > 0){
+			docBufferTimer.cancel();
+			docBufferTimer = new Timer();
+			docBufferTimer.schedule(new CommitAndClearAgedDocBuffer(), maxDocumentBufferAge);
+		}
 	}
 
 	private void sendDocuments(List<SolrInputDocument> docBuffer2) throws SolrServerException, IOException {

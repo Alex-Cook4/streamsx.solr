@@ -93,7 +93,7 @@ Specifies command-line arguments that are passed to the Java virtual machine tha
         </outputPort>
       </primitiveOp>
       <primitiveOp language="Java" modelUriIndex="3" name="SolrDocumentSink" public="true">
-        <description>This operator takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.</description>
+        <description>This operator takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.If no map is provided, all attributes will be committed as if doing a set.</description>
         <parameter expressionMode="Constant" name="vmArg" optional="true" type="rstring">
           <description>
 Specifies command-line arguments that are passed to the Java virtual machine that the operator runs within.
@@ -103,10 +103,10 @@ Specifies command-line arguments that are passed to the Java virtual machine tha
           <description>Solr collection to add documents to.</description>
         </parameter>
         <parameter cardinality="1" expressionMode="AttributeFree" name="documentCommitSize" optional="true" type="int32">
-          <description>Number of tuples queued up before committing to Solr. Default: 1.</description>
+          <description>Number of tuples queued up before committing to Solr. Default: 1. If -1, buffer will never be flushed based on size and will rely on soley on time-based flushing.</description>
         </parameter>
         <parameter cardinality="1" expressionMode="AttributeFree" name="maxDocumentBufferAge" optional="true" type="int32">
-          <description>Max time allowed forthe document buffer to fill before automatically flushed. Time in milliseconds. Default: 1000.</description>
+          <description>Max time allowed for the document buffer to fill before automatically flushing. Time in milliseconds. Default: 1000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.</description>
         </parameter>
         <parameter cardinality="1" expressionMode="AttributeFree" name="solrURL" optional="false" type="rstring">
           <description>URL of Solr server. Example: http://g0601b02:8984/solr</description>
