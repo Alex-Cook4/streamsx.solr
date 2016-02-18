@@ -9,17 +9,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 
 import org.apache.log4j.Logger;
 
 import com.ibm.streams.operator.AbstractOperator;
 import com.ibm.streams.operator.OperatorContext;
+import com.ibm.streams.operator.OperatorContext.ContextCheck;
 import com.ibm.streams.operator.OutputTuple;
 import com.ibm.streams.operator.StreamingInput;
 import com.ibm.streams.operator.StreamingOutput;
 import com.ibm.streams.operator.Tuple;
 import com.ibm.streams.operator.TupleAttribute;
 import com.ibm.streams.operator.Type.MetaType;
+import com.ibm.streams.operator.compile.OperatorContextChecker;
 import com.ibm.streams.operator.log4j.TraceLevel;
 import com.ibm.streams.operator.model.InputPortSet;
 import com.ibm.streams.operator.model.InputPortSet.WindowMode;
@@ -43,7 +46,7 @@ description = SolrDocumentSink.DESCRIPTION )
 @OutputPorts(@OutputPortSet(description="Error Port" , optional=true) ) 
 public class SolrDocumentSink extends AbstractOperator {
 	SolrClient solrClient; 
-	TupleAttribute<Tuple, String> uniqueIdentifierAttribute;
+	TupleAttribute<Tuple, String> uniqueKeyAttribute;
 	
 	private final Logger trace = Logger.getLogger(SolrDocumentSink.class
 			.getCanonicalName());
@@ -56,16 +59,26 @@ public class SolrDocumentSink extends AbstractOperator {
 	private Timer docBufferTimer; 
 	private final String MAP_ATTRIBUTE = "atomicUpdateMap";
 	private boolean inputMapExists = true;
+	private String uniqueKeyName = "";
+	
 	public static final String DESCRIPTION = 
 			"This operator takes in a set of attributes and a map on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
 			+ "The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. "
 			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter."
-			+ "If no map is provided, all attributes will be committed as if doing a set.";
+			+ "If no map is provided, all attributes will be committ";
 	
-	@Parameter(optional = true, description = "Unique id attribute. If non is provided, one will automatically be generated.")
-    public void setUniqueIdentifierAttribute(TupleAttribute<Tuple, String> attributeName){
-    	uniqueIdentifierAttribute = attributeName;
+	@Parameter(optional = true, description = "Incoming attribute to be used as the unique id.  If the uniqueKeyAttribute is not specified,"
+    		+ " a random UUID will be generated as the unique key and the uniqueKeyName parameter must be specified.")
+    public void setUniqueKeyAttribute(TupleAttribute<Tuple, String> attributeName){
+    	uniqueKeyAttribute = attributeName;
+    }
+	
+    @Parameter(optional = true, description = "Name of the unique key in the Solr collection. If this is not specified, "
+    		+ "the name of the uniqueKeyAttribute will be used by default. If the uniqueKeyAttribute is not specified,"
+    		+ " a random UUID will be generated as the unique key and this parameter must be specified.")
+    public void setUniqueKeyName(String value){
+    	uniqueKeyName = value;
     }
     
     @Parameter(optional = false, description = "URL of Solr server. Example: http://g0601b02:8984/solr")
@@ -98,6 +111,20 @@ public class SolrDocumentSink extends AbstractOperator {
         solrClient.close();       
         super.shutdown();
     }
+    
+    
+    /*
+     * Make sure that either uniqueKeyAttribute or uniqueKeyName are specified. 
+     */
+    @ContextCheck(compile = true)
+	public static void checkDependentParameters(OperatorContextChecker checker) {
+    	OperatorContext context = checker.getOperatorContext();
+    	if (!context.getParameterNames().contains("uniqueKeyAttribute")){
+    		if (!context.getParameterNames().contains("uniqueKeyName")){
+        		checker.setInvalidContext("You must specify either the uniqueKeyAttribute or the uniqueKeyName parameters.", new String[] {});
+        	}
+    	}
+    }
 	
 	@Override
 	public synchronized void initialize(OperatorContext context)
@@ -123,6 +150,11 @@ public class SolrDocumentSink extends AbstractOperator {
         if (!validErrorPort){
         	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
         }
+        
+        if (uniqueKeyName.isEmpty()){
+        	uniqueKeyName = uniqueKeyAttribute.getAttribute().getName();
+        }
+        
         docBuffer = new ArrayList<SolrInputDocument>();
         docBufferTimer = new Timer();
         resetDocBuffer();        		
@@ -141,20 +173,24 @@ public class SolrDocumentSink extends AbstractOperator {
             throws Exception {    	
     	SolrInputDocument doc = new SolrInputDocument();
     	
+    	//if user provided update action map, use it.
     	if (inputMapExists){
-    		addUniqueIdentifierFieldToDocument(tuple, doc);
-    		
 	    	@SuppressWarnings("unchecked")
 			Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap(MAP_ATTRIBUTE);
 	    	
 	    	for (Map.Entry<String, String> entry : atomicUpdateMap.entrySet()){
 	    		addFieldToDocument(tuple, doc, entry);
 	    	}
+	    	
     	} else {
     		//default action is to set all attributes
     		for (String attributeName : tuple.getStreamSchema().getAttributeNames()){
     			doc.addField(attributeName, tuple.getObject(attributeName));
     		}
+    	}
+    	
+    	if (!doc.containsKey(uniqueKeyName)){
+    		addUniqueIdentifierFieldToDocument(tuple, doc);
     	}
     	
     	docBuffer.add(doc);
@@ -169,8 +205,16 @@ public class SolrDocumentSink extends AbstractOperator {
     }
 
 	private void addUniqueIdentifierFieldToDocument(Tuple tuple, SolrInputDocument doc) {
+		String uniqueKeyValue;
+		if (uniqueKeyAttribute != null){
+			uniqueKeyValue = uniqueKeyAttribute.getValue(tuple);
+		} else {
+			//generate random unique key if it doesn't exist
+			uniqueKeyValue = UUID.randomUUID().toString();
+		}
+		
 		try{
-    		doc.addField(uniqueIdentifierAttribute.getAttribute().getName(), uniqueIdentifierAttribute.getValue(tuple));
+    		doc.addField(uniqueKeyName, uniqueKeyValue);
     	} catch (Exception e) {
     		e.printStackTrace();
     		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
@@ -222,7 +266,7 @@ public class SolrDocumentSink extends AbstractOperator {
 		UpdateResponse response = solrClient.add(docBuffer2);
 		if(trace.isInfoEnabled())
 			trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.getStatus());
-		solrClient.commit();
+		//solrClient.commit();
 		System.out.println("Comitting...");
 	}
     

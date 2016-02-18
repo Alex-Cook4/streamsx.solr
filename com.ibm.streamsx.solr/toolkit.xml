@@ -93,7 +93,7 @@ Specifies command-line arguments that are passed to the Java virtual machine tha
         </outputPort>
       </primitiveOp>
       <primitiveOp language="Java" modelUriIndex="3" name="SolrDocumentSink" public="true">
-        <description>This operator takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.If no map is provided, all attributes will be committed as if doing a set.</description>
+        <description>This operator takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter.If no map is provided, all attributes will be committ</description>
         <parameter expressionMode="Constant" name="vmArg" optional="true" type="rstring">
           <description>
 Specifies command-line arguments that are passed to the Java virtual machine that the operator runs within.
@@ -111,8 +111,11 @@ Specifies command-line arguments that are passed to the Java virtual machine tha
         <parameter cardinality="1" expressionMode="AttributeFree" name="solrURL" optional="false" type="rstring">
           <description>URL of Solr server. Example: http://g0601b02:8984/solr</description>
         </parameter>
-        <parameter cardinality="1" expressionMode="Attribute" name="uniqueIdentifierAttribute" optional="true" type="rstring">
-          <description>Unique id attribute. If non is provided, one will automatically be generated.</description>
+        <parameter cardinality="1" expressionMode="Attribute" name="uniqueKeyAttribute" optional="true" type="rstring">
+          <description>Incoming attribute to be used as the unique id.  If the uniqueKeyAttribute is not specified, a random UUID will be generated as the unique key and the uniqueKeyName parameter must be specified.</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="uniqueKeyName" optional="true" type="rstring">
+          <description>Name of the unique key in the Solr collection. If this is not specified, the name of the uniqueKeyAttribute will be used by default. If the uniqueKeyAttribute is not specified, a random UUID will be generated as the unique key and this parameter must be specified.</description>
         </parameter>
         <inputPort maxNumPorts="1" minNumPorts="1" optional="false" windowPunctInputMode="Oblivious">
           <description>Port that ingests tuples</description>
