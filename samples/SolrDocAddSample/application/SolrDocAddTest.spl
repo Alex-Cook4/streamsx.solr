@@ -42,7 +42,7 @@ composite SolrDocAddSample
 			SolrDocumentSink(Beacon_2_out0)
 		{
 			param
-				uniqueIdentifierAttribute : id ;
+				uniqueKeyAttribute : id ;
 				solrURL : "http://g0601b02:8984/solr" ;
 				collection : "techproducts";
 				documentCommitSize : 10;

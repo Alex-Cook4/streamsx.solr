@@ -108,6 +108,9 @@ Specifies command-line arguments that are passed to the Java virtual machine tha
         <parameter cardinality="1" expressionMode="AttributeFree" name="maxDocumentBufferAge" optional="true" type="int32">
           <description>Max time allowed for the document buffer to fill before automatically flushing. Time in milliseconds. Default: 1000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.</description>
         </parameter>
+        <parameter cardinality="-1" expressionMode="AttributeFree" name="solrRequestParams" optional="true" type="rstring">
+          <description>Add Solr request parameters. Parameters should be comma separatated like so: "name=value","name=value"</description>
+        </parameter>
         <parameter cardinality="1" expressionMode="AttributeFree" name="solrURL" optional="false" type="rstring">
           <description>URL of Solr server. Example: http://g0601b02:8984/solr</description>
         </parameter>

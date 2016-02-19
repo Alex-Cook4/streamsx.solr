@@ -15,14 +15,12 @@ import org.apache.log4j.Logger;
 
 import com.ibm.streams.operator.AbstractOperator;
 import com.ibm.streams.operator.OperatorContext;
-import com.ibm.streams.operator.OperatorContext.ContextCheck;
 import com.ibm.streams.operator.OutputTuple;
 import com.ibm.streams.operator.StreamingInput;
 import com.ibm.streams.operator.StreamingOutput;
 import com.ibm.streams.operator.Tuple;
 import com.ibm.streams.operator.TupleAttribute;
 import com.ibm.streams.operator.Type.MetaType;
-import com.ibm.streams.operator.compile.OperatorContextChecker;
 import com.ibm.streams.operator.log4j.TraceLevel;
 import com.ibm.streams.operator.model.InputPortSet;
 import com.ibm.streams.operator.model.InputPortSet.WindowMode;
@@ -36,8 +34,10 @@ import com.ibm.streams.operator.model.PrimitiveOperator;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.common.SolrInputDocument; 
-import org.apache.solr.client.solrj.response.UpdateResponse;
+import org.apache.solr.client.solrj.request.UpdateRequest;
+import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.solr.common.util.NamedList;
 
 @Libraries("opt/downloaded/*")
 @PrimitiveOperator(name="SolrDocumentSink", namespace="com.ibm.streamsx.solr",
@@ -60,6 +60,8 @@ public class SolrDocumentSink extends AbstractOperator {
 	private final String MAP_ATTRIBUTE = "atomicUpdateMap";
 	private boolean inputMapExists = true;
 	private String uniqueKeyName = "";
+	private ModifiableSolrParams requestParams;
+	private List<String> reqParamStrings = new ArrayList<String>();
 	
 	public static final String DESCRIPTION = 
 			"This operator takes in a set of attributes and a map on its import port. "
@@ -102,7 +104,13 @@ public class SolrDocumentSink extends AbstractOperator {
     public void setMaxDocumentBufferAge(int value){
     	maxDocumentBufferAge  = value;
     }
-
+    
+    @Parameter(optional = true, description = "Add Solr request parameters. Parameters should be comma separatated like so: \\\"name=value\\\",\\\"name=value\\\"")
+    public void setSolrRequestParams(List<String> values){
+    	if (values != null)
+    		reqParamStrings.addAll(values);
+    }
+    
     @Override
     public synchronized void shutdown() throws Exception {
         OperatorContext context = getOperatorContext();
@@ -116,15 +124,15 @@ public class SolrDocumentSink extends AbstractOperator {
     /*
      * Make sure that either uniqueKeyAttribute or uniqueKeyName are specified. 
      */
-    @ContextCheck(compile = true)
-	public static void checkDependentParameters(OperatorContextChecker checker) {
-    	OperatorContext context = checker.getOperatorContext();
-    	if (!context.getParameterNames().contains("uniqueKeyAttribute")){
-    		if (!context.getParameterNames().contains("uniqueKeyName")){
-        		checker.setInvalidContext("You must specify either the uniqueKeyAttribute or the uniqueKeyName parameters.", new String[] {});
-        	}
-    	}
-    }
+//    @ContextCheck(compile = true)
+//	public static void checkDependentParameters(OperatorContextChecker checker) {
+//    	OperatorContext context = checker.getOperatorContext();
+//    	if (!context.getParameterNames().contains("uniqueKeyAttribute")){
+//    		if (!context.getParameterNames().contains("uniqueKeyName")){
+//        		checker.setInvalidContext("You must specify either the uniqueKeyAttribute or the uniqueKeyName parameters.", new String[] {});
+//        	}
+//    	}
+//    }
 	
 	@Override
 	public synchronized void initialize(OperatorContext context)
@@ -151,13 +159,33 @@ public class SolrDocumentSink extends AbstractOperator {
         	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
         }
         
-        if (uniqueKeyName.isEmpty()){
+        if (uniqueKeyName.isEmpty()
+        		&& uniqueKeyAttribute != null){
         	uniqueKeyName = uniqueKeyAttribute.getAttribute().getName();
         }
+        
+        
+        requestParams = getRequestParams();
+        
         
         docBuffer = new ArrayList<SolrInputDocument>();
         docBufferTimer = new Timer();
         resetDocBuffer();        		
+	}
+
+	private ModifiableSolrParams getRequestParams() throws MalformedSolrParameterException {
+		ModifiableSolrParams params = new ModifiableSolrParams();
+		for (String req : reqParamStrings){
+			try{
+				String paramName = req.split("=")[0];
+				String paramValue = req.split("=")[1];
+				params.add(paramName, paramValue);
+			} catch (ArrayIndexOutOfBoundsException e){
+				throw new MalformedSolrParameterException("Parameters should be comma separated and in the form name=value.");
+			}
+			
+		}
+		return params;
 	}
 
 	private String getCollectionURL() {
@@ -171,9 +199,24 @@ public class SolrDocumentSink extends AbstractOperator {
     @Override
     public synchronized void process(StreamingInput<Tuple> stream, Tuple tuple)
             throws Exception {    	
-    	SolrInputDocument doc = new SolrInputDocument();
+    	SolrInputDocument doc = generateSolrDocFromTuple(tuple);
     	
-    	//if user provided update action map, use it.
+    	
+    	//System.out.println("Adding document: " + doc.values().toString());
+    	docBuffer.add(doc);
+    	
+    	if (documentCommitSize > 0
+    			&& docBuffer.size() >= documentCommitSize){
+    		System.out.println("Comitting from process...");
+	    	//Add the documents then clear
+	    	commitAndClearBuffer();
+    	}
+    	
+    }
+
+	private SolrInputDocument generateSolrDocFromTuple(Tuple tuple) {
+		SolrInputDocument doc = new SolrInputDocument();
+		//if user provided update action map, use it.
     	if (inputMapExists){
 	    	@SuppressWarnings("unchecked")
 			Map<String,String> atomicUpdateMap = (Map<String, String>) tuple.getMap(MAP_ATTRIBUTE);
@@ -189,28 +232,21 @@ public class SolrDocumentSink extends AbstractOperator {
     		}
     	}
     	
-    	if (!doc.containsKey(uniqueKeyName)){
+    	if (!uniqueKeyName.isEmpty()
+    			&& !doc.containsKey(uniqueKeyName)){
     		addUniqueIdentifierFieldToDocument(tuple, doc);
     	}
     	
-    	docBuffer.add(doc);
-    	
-    	if (documentCommitSize > 0
-    			&& docBuffer.size() >= documentCommitSize){
-    		System.out.println("Comitting from process...");
-	    	//Add the documents then clear
-	    	commitAndClearBuffer();
-    	}
-    	
-    }
+    	return doc;
+	}
 
 	private void addUniqueIdentifierFieldToDocument(Tuple tuple, SolrInputDocument doc) {
-		String uniqueKeyValue;
+		Object uniqueKeyValue;
 		if (uniqueKeyAttribute != null){
 			uniqueKeyValue = uniqueKeyAttribute.getValue(tuple);
 		} else {
 			//generate random unique key if it doesn't exist
-			uniqueKeyValue = UUID.randomUUID().toString();
+			uniqueKeyValue = UUID.randomUUID();
 		}
 		
 		try{
@@ -242,10 +278,12 @@ public class SolrDocumentSink extends AbstractOperator {
 				sendDocuments(docBuffer);
 			} catch (Exception e){
 				e.printStackTrace();
-				trace.log(TraceLevel.ERROR, "Error while committing documents: " + e.getMessage() );
+				trace.log(TraceLevel.ERROR, "Error while ting documents: " + e.getMessage() );
 				submitToErrorPort(e);
 			}
 			resetDocBuffer();
+		} else {
+			System.out.println("Document buffer was empty when deleting.");
 		}
 	}
 
@@ -263,10 +301,13 @@ public class SolrDocumentSink extends AbstractOperator {
 	}
 
 	private void sendDocuments(List<SolrInputDocument> docBuffer2) throws SolrServerException, IOException {
-		UpdateResponse response = solrClient.add(docBuffer2);
+		UpdateRequest request = new UpdateRequest();
+		request.setParams(requestParams);//"update.chain", "dedupe");
+		request.add(docBuffer2);
+		NamedList<Object> response = solrClient.request(request);
 		if(trace.isInfoEnabled())
-			trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.getStatus());
-		//solrClient.commit();
+			trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.toString());
+		solrClient.commit();
 		System.out.println("Comitting...");
 	}
     
