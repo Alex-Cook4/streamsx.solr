@@ -60,15 +60,14 @@ public class SolrDocumentSink extends AbstractOperator {
 	private ModifiableSolrParams requestParams;
 	
 	public static final String DESCRIPTION = 
-			"This operator takes in a set of attributes and a map on its import port. "
+			"This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
-			+ "The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. "
+			+ "The map (attribute: atomicUpdateMap) must be specified for an attribute the type of update: set, add, remove, removeregex, or inc. "
 			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. "
-			+ "If no map is provided, all attributes will be committ. "
+			+ "If no map is provided, all attributes will be committed as if the map were on \\\"set\\\". "
 			+ "No ordering of the tuples within a buffer being committed is guaranteed.";
 	
-	@Parameter(optional = true, description = "Incoming attribute to be used as the unique id.  If the uniqueKeyAttribute is not specified,"
-    		+ " a random UUID will be generated as the unique key and the uniqueKeyName parameter must be specified.")
+	@Parameter(optional = true, description = "Incoming attribute to be used as the unique id.")
     public void setUniqueKeyAttribute(TupleAttribute<Tuple, String> attributeName){
     	uniqueKeyAttribute = attributeName;
     }
@@ -84,13 +83,13 @@ public class SolrDocumentSink extends AbstractOperator {
     }
     
     @Parameter(optional = true, description="Number of tuples queued up before committing to Solr. Default: 1. If -1, buffer will never "
-    		+ "be flushed based on size and will rely on soley on time-based flushing.")
+    		+ "be flushed based on size and will rely soley on time-based flushing.")
     public void setDocumentCommitSize(int value){
     	documentCommitSize = value;
     }
     
     @Parameter(optional = true, description="Max time allowed for the document buffer to fill before automatically flushing. "
-    		+ "Time in milliseconds. Default: 1000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.")
+    		+ "Time in milliseconds. Default: 10000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.")
     public void setMaxDocumentBufferAge(int value){
     	maxDocumentBufferAge  = value;
     }
@@ -146,12 +145,12 @@ public class SolrDocumentSink extends AbstractOperator {
             throws Exception {    	
     	SolrInputDocument doc = generateSolrDocFromTuple(tuple);
     	
-    	//System.out.println("Adding document: " + doc.values().toString());
     	docBuffer.add(doc);
     	
     	if (documentCommitSize > 0
     			&& docBuffer.size() >= documentCommitSize){
-    		System.out.println("Comitting from process...");
+    		if(trace.isDebugEnabled())
+    			trace.log(TraceLevel.INFO,"Comitting from process...");
 	    	//Add the documents then clear
 	    	commitAndClearBuffer();
     	}
@@ -255,7 +254,8 @@ public class SolrDocumentSink extends AbstractOperator {
 			}
 			resetDocBuffer();
 		} else {
-			System.out.println("Document buffer was empty when deleting.");
+			if(trace.isInfoEnabled())
+				trace.log(TraceLevel.INFO,"Document buffer was empty when deleting.");
 		}
 	}
 
@@ -280,9 +280,8 @@ public class SolrDocumentSink extends AbstractOperator {
 		request.add(docBuffer2);
 		NamedList<Object> response = solrClient.request(request);
 		if(trace.isInfoEnabled())
-			trace.log(TraceLevel.INFO, "Solr Client add response status: " + response.toString());
+			trace.log(TraceLevel.INFO, "Attempting to commit. Solr Client add response status: " + response.toString());
 		solrClient.commit();
-		System.out.println("Comitting...");
 	}
     
     private void submitToErrorPort(String error) {
@@ -301,7 +300,8 @@ public class SolrDocumentSink extends AbstractOperator {
     class CommitAndClearAgedDocBuffer extends TimerTask {
 		@Override
 		public void run() {
-			System.out.println("Comitting from TimerTask...");
+			if(trace.isDebugEnabled())
+				trace.log(TraceLevel.DEBUG,"Comitting from TimerTask...");
 			commitAndClearBuffer();
 		}     	
     }
