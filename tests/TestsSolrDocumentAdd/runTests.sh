@@ -93,7 +93,7 @@ done
 
 echo
 echo "Starting the Solr jobs in the Streams instance..."
-echo "streamtool submitjob $zk_parameter -f appset $PARAMETER_ARGS"
+echo "streamtool submitjob $zk_parameter -f appset"
 streamtool submitjob $zk_parameter -f newAppset
 
 if [[ $? != 0 ]]; then
