@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.UUID;
-
 import org.apache.log4j.Logger;
 
 import com.ibm.streams.operator.AbstractOperator;
@@ -54,33 +52,25 @@ public class SolrDocumentSink extends AbstractOperator {
 	private String collection;
 	private String solrURL;
 	private int documentCommitSize = 1;
-	private List<SolrInputDocument> docBuffer;
+	private List<SolrInputDocument> docBuffer = new ArrayList<SolrInputDocument>();;
 	private int maxDocumentBufferAge = 10000;
-	private Timer docBufferTimer; 
+	private Timer docBufferTimer = new Timer();; 
 	private final String MAP_ATTRIBUTE = "atomicUpdateMap";
 	private boolean inputMapExists = true;
-	private String uniqueKeyName = "";
 	private ModifiableSolrParams requestParams;
-	private List<String> reqParamStrings = new ArrayList<String>();
 	
 	public static final String DESCRIPTION = 
 			"This operator takes in a set of attributes and a map on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
 			+ "The map (attribute: atomicUpdateMap) must specify for an attribute the type of update: set, add, remove, removeregex, or inc. "
-			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter."
-			+ "If no map is provided, all attributes will be committ";
+			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. "
+			+ "If no map is provided, all attributes will be committ. "
+			+ "No ordering of the tuples within a buffer being committed is guaranteed.";
 	
 	@Parameter(optional = true, description = "Incoming attribute to be used as the unique id.  If the uniqueKeyAttribute is not specified,"
     		+ " a random UUID will be generated as the unique key and the uniqueKeyName parameter must be specified.")
     public void setUniqueKeyAttribute(TupleAttribute<Tuple, String> attributeName){
     	uniqueKeyAttribute = attributeName;
-    }
-	
-    @Parameter(optional = true, description = "Name of the unique key in the Solr collection. If this is not specified, "
-    		+ "the name of the uniqueKeyAttribute will be used by default. If the uniqueKeyAttribute is not specified,"
-    		+ " a random UUID will be generated as the unique key and this parameter must be specified.")
-    public void setUniqueKeyName(String value){
-    	uniqueKeyName = value;
     }
     
     @Parameter(optional = false, description = "URL of Solr server. Example: http://g0601b02:8984/solr")
@@ -105,10 +95,11 @@ public class SolrDocumentSink extends AbstractOperator {
     	maxDocumentBufferAge  = value;
     }
     
-    @Parameter(optional = true, description = "Add Solr request parameters. Parameters should be comma separatated like so: \\\"name=value\\\",\\\"name=value\\\"")
-    public void setSolrRequestParams(List<String> values){
+    @Parameter(optional = true, description = "Add Solr request parameters. Parameters should be comma separatated like so: \\\"name=value\\\",\\\"name=value\\\". "
+    		+ "Use this parameter to use a custom updateRequestProcessorChain (\\\"update.chain=<chain-name>\\\").")
+    public void setSolrRequestParams(List<String> values) throws MalformedSolrParameterException{
     	if (values != null)
-    		reqParamStrings.addAll(values);
+    		requestParams = getRequestParams(values);
     }
     
     @Override
@@ -120,19 +111,6 @@ public class SolrDocumentSink extends AbstractOperator {
         super.shutdown();
     }
     
-    
-    /*
-     * Make sure that either uniqueKeyAttribute or uniqueKeyName are specified. 
-     */
-//    @ContextCheck(compile = true)
-//	public static void checkDependentParameters(OperatorContextChecker checker) {
-//    	OperatorContext context = checker.getOperatorContext();
-//    	if (!context.getParameterNames().contains("uniqueKeyAttribute")){
-//    		if (!context.getParameterNames().contains("uniqueKeyName")){
-//        		checker.setInvalidContext("You must specify either the uniqueKeyAttribute or the uniqueKeyName parameters.", new String[] {});
-//        	}
-//    	}
-//    }
 	
 	@Override
 	public synchronized void initialize(OperatorContext context)
@@ -158,22 +136,35 @@ public class SolrDocumentSink extends AbstractOperator {
         if (!validErrorPort){
         	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
         }
-        
-        if (uniqueKeyName.isEmpty()
-        		&& uniqueKeyAttribute != null){
-        	uniqueKeyName = uniqueKeyAttribute.getAttribute().getName();
-        }
-        
-        
-        requestParams = getRequestParams();
-        
-        
-        docBuffer = new ArrayList<SolrInputDocument>();
-        docBufferTimer = new Timer();
+
         resetDocBuffer();        		
 	}
 
-	private ModifiableSolrParams getRequestParams() throws MalformedSolrParameterException {
+
+    @Override
+    public synchronized void process(StreamingInput<Tuple> stream, Tuple tuple)
+            throws Exception {    	
+    	SolrInputDocument doc = generateSolrDocFromTuple(tuple);
+    	
+    	//System.out.println("Adding document: " + doc.values().toString());
+    	docBuffer.add(doc);
+    	
+    	if (documentCommitSize > 0
+    			&& docBuffer.size() >= documentCommitSize){
+    		System.out.println("Comitting from process...");
+	    	//Add the documents then clear
+	    	commitAndClearBuffer();
+    	}
+    	
+    }
+
+    
+    /*
+     * Support functions of the initialize and process methods
+     */
+    
+    
+    private ModifiableSolrParams getRequestParams(List<String> reqParamStrings) throws MalformedSolrParameterException {
 		ModifiableSolrParams params = new ModifiableSolrParams();
 		for (String req : reqParamStrings){
 			try{
@@ -194,26 +185,8 @@ public class SolrDocumentSink extends AbstractOperator {
 		String collectionURL = solrURL + collection;
 		return collectionURL;
 	}
-
-
-    @Override
-    public synchronized void process(StreamingInput<Tuple> stream, Tuple tuple)
-            throws Exception {    	
-    	SolrInputDocument doc = generateSolrDocFromTuple(tuple);
-    	
-    	
-    	//System.out.println("Adding document: " + doc.values().toString());
-    	docBuffer.add(doc);
-    	
-    	if (documentCommitSize > 0
-    			&& docBuffer.size() >= documentCommitSize){
-    		System.out.println("Comitting from process...");
-	    	//Add the documents then clear
-	    	commitAndClearBuffer();
-    	}
-    	
-    }
-
+    
+    
 	private SolrInputDocument generateSolrDocFromTuple(Tuple tuple) {
 		SolrInputDocument doc = new SolrInputDocument();
 		//if user provided update action map, use it.
@@ -225,6 +198,10 @@ public class SolrDocumentSink extends AbstractOperator {
 	    		addFieldToDocument(tuple, doc, entry);
 	    	}
 	    	
+	    	if (uniqueKeyAttribute != null){
+	    		addUniqueIdentifierFieldToDocument(tuple, doc);
+	    	}
+	    	
     	} else {
     		//default action is to set all attributes
     		for (String attributeName : tuple.getStreamSchema().getAttributeNames()){
@@ -232,30 +209,25 @@ public class SolrDocumentSink extends AbstractOperator {
     		}
     	}
     	
-    	if (!uniqueKeyName.isEmpty()
-    			&& !doc.containsKey(uniqueKeyName)){
-    		addUniqueIdentifierFieldToDocument(tuple, doc);
-    	}
-    	
     	return doc;
 	}
 
 	private void addUniqueIdentifierFieldToDocument(Tuple tuple, SolrInputDocument doc) {
-		Object uniqueKeyValue;
-		if (uniqueKeyAttribute != null){
-			uniqueKeyValue = uniqueKeyAttribute.getValue(tuple);
+		if (!doc.getFieldNames().contains(uniqueKeyAttribute.getAttribute().getName())){
+			try{
+	    		doc.addField(uniqueKeyAttribute.getAttribute().getName(), uniqueKeyAttribute.getValue(tuple));
+	    	} catch (Exception e) {
+	    		e.printStackTrace();
+	    		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
+	    		submitToErrorPort(e.getMessage());
+	    	}
 		} else {
-			//generate random unique key if it doesn't exist
-			uniqueKeyValue = UUID.randomUUID();
+			if (trace.isInfoEnabled()){
+				trace.log(TraceLevel.INFO, "Unique field attribute: " 
+					+ uniqueKeyAttribute.getAttribute().getName() 
+					+ " was already found in the document to be added.");
+			}
 		}
-		
-		try{
-    		doc.addField(uniqueKeyName, uniqueKeyValue);
-    	} catch (Exception e) {
-    		e.printStackTrace();
-    		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
-    		submitToErrorPort(e);
-    	}
 	}
 
 	private void addFieldToDocument(Tuple tuple, SolrInputDocument doc, Map.Entry<String, String> entry) {
@@ -268,7 +240,7 @@ public class SolrDocumentSink extends AbstractOperator {
 		} catch (Exception e){
 			e.printStackTrace();
 			trace.log(TraceLevel.ERROR, "Failed to add field to document: " + e.getMessage());
-			submitToErrorPort(e);
+			submitToErrorPort(e.getMessage());
 		}
 	}
 
@@ -278,14 +250,16 @@ public class SolrDocumentSink extends AbstractOperator {
 				sendDocuments(docBuffer);
 			} catch (Exception e){
 				e.printStackTrace();
-				trace.log(TraceLevel.ERROR, "Error while ting documents: " + e.getMessage() );
-				submitToErrorPort(e);
+				trace.log(TraceLevel.ERROR, "Error while sending documents: " + e.getMessage() );
+				submitToErrorPort(e.getMessage() + "\n docBuffer: " + docBuffer.toString());
 			}
 			resetDocBuffer();
 		} else {
 			System.out.println("Document buffer was empty when deleting.");
 		}
 	}
+
+
 
 	private void resetDocBuffer() {
 		docBuffer.clear();
@@ -302,7 +276,7 @@ public class SolrDocumentSink extends AbstractOperator {
 
 	private void sendDocuments(List<SolrInputDocument> docBuffer2) throws SolrServerException, IOException {
 		UpdateRequest request = new UpdateRequest();
-		request.setParams(requestParams);//"update.chain", "dedupe");
+		request.setParams(requestParams);
 		request.add(docBuffer2);
 		NamedList<Object> response = solrClient.request(request);
 		if(trace.isInfoEnabled())
@@ -311,11 +285,11 @@ public class SolrDocumentSink extends AbstractOperator {
 		System.out.println("Comitting...");
 	}
     
-    private void submitToErrorPort(Exception e) {
+    private void submitToErrorPort(String error) {
 		if (validErrorPort) {
 			StreamingOutput<OutputTuple> streamingOutput = getOutput(0);
 			OutputTuple otup = streamingOutput.newTuple();
-			otup.setString(0, e.getMessage());
+			otup.setString(0, error);
 			try {
 				streamingOutput.submit(otup);
 			} catch (Exception e1) {
@@ -323,7 +297,6 @@ public class SolrDocumentSink extends AbstractOperator {
 			}
 		}
 	}
-    
     
     class CommitAndClearAgedDocBuffer extends TimerTask {
 		@Override

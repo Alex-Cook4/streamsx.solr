@@ -1,0 +1,68 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrDocumentSink ;
+/** To use this sample, you can start Solr with the default Solr example (5.3.1)
+		bin/solr start -p 8984 -s "example/techproducts/solr"
+This will create a collection called techproducts.
+* 
+* You must also uncomment the dedupe updateRequestProcessorChain in the solrconfig.xml for collection techproducts: 
+* 	solr-5.3.1/example/techproducts/solr/techproducts/conf
+* 
+* Verification: Make sure 100 unique id docs are created with NoUniqueKeyTest as the name. 
+* 
+*/
+composite TestNoUniqueKey
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://localhost:8983/solr/" );
+		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
+	graph
+
+		stream<rstring name, rstring features>
+			Beacon_2_out0 = Custom()
+		{
+			logic 
+				onProcess :
+				{
+					rstring features = "Solr under covers id generation." ;
+					rstring name = "NoUniqueKeyTest" ;
+					mutable map<ustring, ustring> actionMap = { } ;
+					insertM(actionMap,(ustring) "name",(ustring) "set") ;
+					insertM(actionMap,(ustring) "features",(ustring) "set") ;
+					for(int32 j in range(100))
+					{ 
+						submit({ name = name, features = features +(rstring)(400 + j)							 }, Beacon_2_out0) ;
+						block(0.1) ;
+					}
+
+				}
+
+		}
+
+		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8984/solr/techproducts/select/?wt=json&q=*:*&rows=200
+		(stream<rstring message> ErrorPort) as SolrDocSinker =
+			SolrDocumentSink(Beacon_2_out0)
+		{
+			param
+				solrURL : $solrServer;
+				collection : $solrCollection;
+				documentCommitSize : 3 ;
+				maxDocumentBufferAge : 3500 ;
+				solrRequestParams : "update.chain=dedupe";
+
+		}
+
+		() as ErrorWriter = Custom(ErrorPort)
+		{
+			logic
+				onTuple ErrorPort :
+				{
+					printStringLn("Error : " + message) ;
+				}
+
+		}
+
+}
+
+
+

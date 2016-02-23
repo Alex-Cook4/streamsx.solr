@@ -1,0 +1,64 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrDocumentSink ;
+/** To use this sample, you can start Solr with the default Solr example (5.3.1)
+		bin/solr start -p 8984 -s "example/techproducts/solr"
+This will create a collection called techproducts.
+* 
+* Verification: verify that no tuples are added to the 400's id range. 
+*/
+composite TestNegativeDocBufferTimer
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://localhost:8983/solr/" );
+		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
+	graph
+	
+		/*Generate attributes as well as map.
+		 * Notice: The unique id is not part of the map (it is specified in the operator parameters.
+		 */ 
+		stream<rstring id, rstring name, rstring features, map<ustring,
+			ustring> atomicUpdateMap> Beacon_2_out0 = Custom()
+		{
+			logic
+				onProcess :
+				{
+					rstring features = "This is an extra new feature!" ;
+					rstring name = "NegativeTest" ;
+					mutable map<ustring, ustring> actionMap = { } ;
+					insertM(actionMap,(ustring) "name",(ustring) "set") ;
+					insertM(actionMap,(ustring) "features",(ustring) "add") ;
+					for(int32 j in range(100))
+					{
+						submit({ id =(rstring)(400 + j), name = name, features =
+							features + (rstring)(400 + j), atomicUpdateMap = actionMap }, Beacon_2_out0) ;
+						block(0.1) ;
+					}
+
+				}
+
+		}
+
+		
+		//Test URL: http://g0601b02.pok.hpc-ng.ibm.com:8984/solr/techproducts/select/?wt=json&q=*:*&rows=200
+		(stream<rstring message> ErrorPort) as SolrDocSinker =
+			SolrDocumentSink(Beacon_2_out0)
+		{
+			param
+				uniqueKeyAttribute : id ;
+				solrURL : $solrServer ;
+				collection : $solrCollection;
+				documentCommitSize : 1000;
+				maxDocumentBufferAge : -1;
+		}
+
+		() as ErrorWriter = Custom(ErrorPort)
+		{
+			logic onTuple ErrorPort : {
+				printStringLn("Error : " + message);
+			}
+		}
+
+}
+
+

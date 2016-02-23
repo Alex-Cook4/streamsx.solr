@@ -1,0 +1,92 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrDocumentSink ;
+/** To use this sample, you can start Solr with the default Solr example (5.3.1)
+		bin/solr start -p 8984 -s "example/techproducts/solr"
+This will create a collection called techproducts.
+* 
+* Verifying this test - In the id range 300-399:
+* 1. Documents with ids in the 300's ending 5-9 should successfully be overwritten with BadTupleTest as the name (you must either run this test twice or have already run another test that populates the 300 range).
+* 2. Documents with ids ending in 0-4 should fail, but be submitted to the error port. 
+* 
+*/
+composite TestBadTupleMap
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://g0601b02:8984/solr/" );
+		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
+	graph
+	/** Generate attributes as well as map.		
+		Notice: The unique id is not part of the map (it is specified in the operator parameters.		
+		*/
+		stream<rstring id, rstring name, boolean my_bool_bs, int32 my_int_is,
+			float32 my_float_fs, rstring features, map<ustring,
+			ustring> atomicUpdateMap> Beacon_2_out0 = Custom()
+		{
+			logic
+				onProcess :
+				{
+					rstring goodfeatures = "goodTuple!" ;
+					rstring badFeatures = "badTuple!";
+					rstring name = "BadTupleTest" ;
+					mutable map<ustring, ustring> badActionMap = { } ;
+					insertM(badActionMap,(ustring) "name",(ustring) "add") ;
+					insertM(badActionMap,(ustring) "features",(ustring) "add") ;
+					insertM(badActionMap,(ustring) "my_bool_bs",(ustring) "add") ;
+					insertM(badActionMap,(ustring) "my_int_is",(ustring) "add") ;
+					insertM(badActionMap,(ustring) "my_float_fs",(ustring) "add") ;
+					mutable map<ustring, ustring> actionMap = { } ;
+					insertM(actionMap,(ustring) "name",(ustring) "set") ;
+					insertM(actionMap,(ustring) "features",(ustring) "add") ;
+					insertM(actionMap,(ustring) "my_bool_bs",(ustring) "add") ;
+					insertM(actionMap,(ustring) "my_int_is",(ustring) "add") ;
+					insertM(actionMap,(ustring) "my_float_fs",(ustring) "add") ;
+					for(int32 j in range(100))
+					{
+						if((j % 10) == 0)
+						{
+							submit({ id =(rstring)(300 + j), name = name, my_bool_bs = true,
+								my_int_is = j, my_float_fs =(float32) random(), features = badFeatures
+								+(rstring)(300 + j), atomicUpdateMap = badActionMap },
+								Beacon_2_out0) ;
+						}
+
+						else
+						{
+							submit({ id =(rstring)(300 + j), name = name, my_bool_bs = true,
+								my_int_is = j, my_float_fs =(float32) random(), features = goodfeatures
+								+(rstring)(300 + j), atomicUpdateMap = actionMap }, Beacon_2_out0) ;
+						}
+
+						block(0.1) ;
+					}
+ 
+				}
+
+		}
+
+		(stream<rstring message> ErrorPort) as SolrDocSinker =
+			SolrDocumentSink(Beacon_2_out0)
+		{
+			param
+				uniqueKeyAttribute : id ;
+				solrURL : $solrServer;
+				collection : $solrCollection;
+				documentCommitSize : 5 ;
+				maxDocumentBufferAge : - 1 ;
+		}
+
+		() as ErrorWriter = Custom(ErrorPort)
+		{
+			logic
+				onTuple ErrorPort :
+				{
+					printStringLn("Error : " + message) ;
+				}
+
+		}
+
+}
+
+
+
