@@ -60,10 +60,10 @@ public class SolrDocumentSink extends AbstractOperator {
 	private ModifiableSolrParams requestParams;
 	
 	public static final String DESCRIPTION = 
-			"This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map on its import port. "
+			"This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map<ustring,ustring> on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
-			+ "The map (attribute: atomicUpdateMap) must be specified for an attribute the type of update: set, add, remove, removeregex, or inc. "
-			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. "
+			+ "If specified, the map (attribute: atomicUpdateMap) must specify the type of update for each attribute: set, add, remove, removeregex, or inc. "
+			+ "The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. See the SolrDocAddSample for map syntax."
 			+ "If no map is provided, all attributes will be committed as if the map were on \\\"set\\\". "
 			+ "No ordering of the tuples within a buffer being committed is guaranteed.";
 	
@@ -72,7 +72,7 @@ public class SolrDocumentSink extends AbstractOperator {
     	uniqueKeyAttribute = attributeName;
     }
     
-    @Parameter(optional = false, description = "URL of Solr server. Example: http://g0601b02:8984/solr")
+    @Parameter(optional = false, description = "URL of Solr server. Example: http://localhost:8983/solr")
     public void setSolrURL(String value){
     	solrURL = value;
     }
@@ -95,7 +95,7 @@ public class SolrDocumentSink extends AbstractOperator {
     }
     
     @Parameter(optional = true, description = "Add Solr request parameters. Parameters should be comma separatated like so: \\\"name=value\\\",\\\"name=value\\\". "
-    		+ "Use this parameter to use a custom updateRequestProcessorChain (\\\"update.chain=<chain-name>\\\").")
+    		+ " Use this parameter to use a custom updateRequestProcessorChain (\\\"update.chain=<chain-name>\\\").")
     public void setSolrRequestParams(List<String> values) throws MalformedSolrParameterException{
     	if (values != null)
     		requestParams = getRequestParams(values);
