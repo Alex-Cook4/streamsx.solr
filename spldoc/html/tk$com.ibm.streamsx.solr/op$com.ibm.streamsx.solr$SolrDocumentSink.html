@@ -32,7 +32,7 @@
 
 <div class="section">
 
-<p class="p">This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must be specified for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. If no map is provided, all attributes will be committed as if the map were on "set". No ordering of the tuples within a buffer being committed is guaranteed.
+<p class="p">This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map&lt;ustring,ustring&gt; on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). If specified, the map (attribute: atomicUpdateMap) must specify the type of update for each attribute: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. See the SolrDocAddSample for map syntax.If no map is provided, all attributes will be committed as if the map were on "set". No ordering of the tuples within a buffer being committed is guaranteed.
 </p>
 
 </div>
@@ -271,7 +271,7 @@ This operator supports 6 parameters.<dl class="dl">
 <dt class="dt dlterm" id="spldoc_operator__parameter_solrRequestParams"><tt class="ph tt">solrRequestParams</tt></dt>
 
 <dd class="dd">
-<p class="p">Add Solr request parameters. Parameters should be comma separatated like so: "name=value","name=value". Use this parameter to use a custom updateRequestProcessorChain ("update.chain=&lt;chain-name&gt;").
+<p class="p">Add Solr request parameters. Parameters should be comma separatated like so: "name=value","name=value".  Use this parameter to use a custom updateRequestProcessorChain ("update.chain=&lt;chain-name&gt;").
 </p>
 <dl class="dl">
 
@@ -299,7 +299,7 @@ This operator supports 6 parameters.<dl class="dl">
 <dt class="dt dlterm" id="spldoc_operator__parameter_solrURL"><tt class="ph tt">solrURL</tt></dt>
 
 <dd class="dd">
-<p class="p">URL of Solr server. Example: http://g0601b02:8984/solr
+<p class="p">URL of Solr server. Example: http://localhost:8983/solr
 </p>
 <dl class="dl">
 
