@@ -22,7 +22,7 @@
 <div class="body refbody">
 <div class="section">
 <p class="p">
-<a class="xref" href="../toolkits/toolkits.html">SolrSPLDoc</a> &gt; <a class="xref" href="tk$com.ibm.streamsx.solr.html">com.ibm.streamsx.solr 1.0.0</a> &gt; <a class="xref" href="ns$com.ibm.streamsx.solr.html">com.ibm.streamsx.solr</a> &gt; SolrDocumentSink</p>
+<a class="xref" href="../toolkits/toolkits.html">SolrDoc</a> &gt; <a class="xref" href="tk$com.ibm.streamsx.solr.html">com.ibm.streamsx.solr 1.0.0</a> &gt; <a class="xref" href="ns$com.ibm.streamsx.solr.html">com.ibm.streamsx.solr</a> &gt; SolrDocumentSink</p>
 
 </div>
 
@@ -32,7 +32,7 @@
 
 <div class="section">
 
-<p class="p">Java Operator SolrDocumentSink
+<p class="p">This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map on its import port. Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). The map (attribute: atomicUpdateMap) must be specified for an attribute the type of update: set, add, remove, removeregex, or inc. The map should NOT include the uniqueIdentifier attribute, as this is provided by a parameter. If no map is provided, all attributes will be committed as if the map were on "set". No ordering of the tuples within a buffer being committed is guaranteed.
 </p>
 
 </div>
@@ -55,7 +55,7 @@
  
   <dt class="dt dlterm">Parameters</dt>
 
-  <dd class="dd">This operator supports 4 parameters. (<tt class="ph tt">bufferedDocumentSize, collection, solrURL, uniqueIdentifierAttribute</tt>)
+  <dd class="dd">This operator supports 6 parameters. (<tt class="ph tt">collection, documentCommitSize, maxDocumentBufferAge, solrRequestParams, solrURL, uniqueKeyAttribute</tt>)
 </dd>
 
  
@@ -173,11 +173,45 @@
 
 <div class="section">
 <p class="p splhead-1"><strong class="ph b"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters">Parameters</a></strong></p>
-This operator supports 4 parameters.<dl class="dl">
+This operator supports 6 parameters.<dl class="dl">
 
-<dt class="dt dlterm" id="spldoc_operator__parameter_bufferedDocumentSize"><tt class="ph tt">bufferedDocumentSize</tt></dt>
+<dt class="dt dlterm" id="spldoc_operator__parameter_collection"><tt class="ph tt">collection</tt></dt>
 
-<dd class="dd"><dl class="dl">
+<dd class="dd">
+<p class="p">Solr collection to add documents to.
+</p>
+<dl class="dl">
+
+ <dt class="dt dlterm">Properties </dt>
+
+ <dd class="dd">
+  <ul class="sl simple">
+  <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__type">Type</a>: rstring
+  </li>
+
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__cardinality">Cardinality</a>: 1
+     </li>
+
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: false
+     </li>
+
+  </ul>
+
+ </dd>
+
+
+</dl>
+
+</dd>
+
+
+
+<dt class="dt dlterm" id="spldoc_operator__parameter_documentCommitSize"><tt class="ph tt">documentCommitSize</tt></dt>
+
+<dd class="dd">
+<p class="p">Number of tuples queued up before committing to Solr. Default: 1. If -1, buffer will never be flushed based on size and will rely soley on time-based flushing.
+</p>
+<dl class="dl">
 
  <dt class="dt dlterm">Properties </dt>
 
@@ -203,9 +237,43 @@ This operator supports 4 parameters.<dl class="dl">
 
 
 
-<dt class="dt dlterm" id="spldoc_operator__parameter_collection"><tt class="ph tt">collection</tt></dt>
+<dt class="dt dlterm" id="spldoc_operator__parameter_maxDocumentBufferAge"><tt class="ph tt">maxDocumentBufferAge</tt></dt>
 
-<dd class="dd"><dl class="dl">
+<dd class="dd">
+<p class="p">Max time allowed for the document buffer to fill before automatically flushing. Time in milliseconds. Default: 10000. If -1, buffer will never flush based on time and will rely solely on count-based flushing.
+</p>
+<dl class="dl">
+
+ <dt class="dt dlterm">Properties </dt>
+
+ <dd class="dd">
+  <ul class="sl simple">
+  <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__type">Type</a>: int32
+  </li>
+
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__cardinality">Cardinality</a>: 1
+     </li>
+
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: true
+     </li>
+
+  </ul>
+
+ </dd>
+
+
+</dl>
+
+</dd>
+
+
+
+<dt class="dt dlterm" id="spldoc_operator__parameter_solrRequestParams"><tt class="ph tt">solrRequestParams</tt></dt>
+
+<dd class="dd">
+<p class="p">Add Solr request parameters. Parameters should be comma separatated like so: "name=value","name=value". Use this parameter to use a custom updateRequestProcessorChain ("update.chain=&lt;chain-name&gt;").
+</p>
+<dl class="dl">
 
  <dt class="dt dlterm">Properties </dt>
 
@@ -214,10 +282,7 @@ This operator supports 4 parameters.<dl class="dl">
   <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__type">Type</a>: rstring
   </li>
 
-     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__cardinality">Cardinality</a>: 1
-     </li>
-
-     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: false
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: true
      </li>
 
   </ul>
@@ -233,7 +298,10 @@ This operator supports 4 parameters.<dl class="dl">
 
 <dt class="dt dlterm" id="spldoc_operator__parameter_solrURL"><tt class="ph tt">solrURL</tt></dt>
 
-<dd class="dd"><dl class="dl">
+<dd class="dd">
+<p class="p">URL of Solr server. Example: http://g0601b02:8984/solr
+</p>
+<dl class="dl">
 
  <dt class="dt dlterm">Properties </dt>
 
@@ -259,9 +327,12 @@ This operator supports 4 parameters.<dl class="dl">
 
 
 
-<dt class="dt dlterm" id="spldoc_operator__parameter_uniqueIdentifierAttribute"><tt class="ph tt">uniqueIdentifierAttribute</tt></dt>
+<dt class="dt dlterm" id="spldoc_operator__parameter_uniqueKeyAttribute"><tt class="ph tt">uniqueKeyAttribute</tt></dt>
 
-<dd class="dd"><dl class="dl">
+<dd class="dd">
+<p class="p">Incoming attribute to be used as the unique id.
+</p>
+<dl class="dl">
 
  <dt class="dt dlterm">Properties </dt>
 
@@ -273,7 +344,7 @@ This operator supports 4 parameters.<dl class="dl">
      <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__cardinality">Cardinality</a>: 1
      </li>
 
-     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: false
+     <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__optional">Optional</a>: true
      </li>
 
      <li class="sli"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__parameters__parameter__expressionmode">ExpressionMode</a>: Attribute
@@ -303,7 +374,7 @@ This operator supports 4 parameters.<dl class="dl">
 
   <dd class="dd"/>
 
-  <dd class="dd"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__context__dependencies__managedlibrary__libpath">Library Path</a>: <tt class="ph tt">../../impl/java/bin, ../../opt/downloaded/*</tt></dd>
+  <dd class="dd"><a class="xref" href="../references/OperatorModel.html#spldoc_reference_operator_model__context__dependencies__managedlibrary__libpath">Library Path</a>: <tt class="ph tt">../../impl/lib/com.ibm.streams.solr.jar, ../../opt/downloaded/*</tt></dd>
 
  
  </dl>
