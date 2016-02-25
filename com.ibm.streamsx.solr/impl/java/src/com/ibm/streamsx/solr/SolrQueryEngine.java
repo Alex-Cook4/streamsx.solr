@@ -1,15 +1,32 @@
-package com.ibm.streams.solr;
+package com.ibm.streamsx.solr;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.response.QueryResponse;
+
 public class SolrQueryEngine {
+	SolrClient solrClient;
+	
+	public SolrQueryEngine(String solrURL) {
+		solrClient = new HttpSolrClient(solrURL);
+	}
 
 	public String sendQuery(String queryString) throws Exception {
-		String queryResponse = getHTML(queryString);
-		return queryResponse;
+		SolrQuery query = new SolrQuery(queryString);
+		QueryResponse queryResponse = solrClient.query(query); //getHTML(queryString);
+		return queryResponse.toString();
+	}
+	
+	public String sendQuery(String collection, String queryString) throws Exception {
+		SolrQuery query = new SolrQuery(queryString);
+		QueryResponse queryResponse = solrClient.query(collection, query); //getHTML(queryString);
+		return queryResponse.toString();
 	}
 
 	 public static String getHTML(String urlToRead) throws Exception {

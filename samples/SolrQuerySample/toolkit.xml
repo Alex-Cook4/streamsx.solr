@@ -7,7 +7,10 @@
       <uri index="1" value="application/SolrQueryTest.spl"/>
     </uriTable>
     <namespace name="application">
-      <compositeOp column="11" line="5" name="SolrQuerySample" potentialMain="true" uriIndex="1"/>
+      <compositeOp column="11" line="5" name="SolrQuerySample" potentialMain="true" uriIndex="1">
+        <parameter defaultValue="getSubmissionTimeValue(&quot;solrServer&quot;, &quot;http://localhost:8983/solr&quot;)" metaType="Expression" name="solrServer" optional="true" type="&lt;rstring>"/>
+        <parameter defaultValue="getSubmissionTimeValue(&quot;solrCollection&quot;, &quot;techproducts&quot;)" metaType="Expression" name="solrCollection" optional="true" type="&lt;rstring>"/>
+      </compositeOp>
     </namespace>
     <dependency>
       <common:name>com.ibm.streamsx.solr</common:name>

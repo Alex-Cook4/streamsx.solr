@@ -16,7 +16,6 @@
 	<classpathentry kind="lib" path="opt/downloaded/noggit-0.6.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/slf4j-api-1.7.7.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/slf4j-log4j12-1.7.7.jar"/>
-	<classpathentry kind="lib" path="opt/downloaded/solr-solrj-5.3.1.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/stax2-api-3.1.4.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/woodstox-core-asl-4.4.1.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/zookeeper-3.4.6.jar"/>
@@ -28,8 +27,9 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="opt/downloaded/lucene-analyzers-common-5.3.1.jar"/>
-	<classpathentry kind="lib" path="opt/downloaded/lucene-core-5.3.1.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded"/>
+	<classpathentry kind="lib" path="opt/downloaded/lucene-analyzers-common-5.5.0.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/lucene-core-5.5.0.jar"/>
+	<classpathentry kind="lib" path="opt/downloaded/solr-solrj-5.5.0.jar"/>
 	<classpathentry kind="output" path="impl/java/bin"/>
 </classpath>

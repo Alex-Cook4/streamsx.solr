@@ -1,4 +1,4 @@
-package com.ibm.streams.solr;
+package com.ibm.streamsx.solr;
 
 public class MalformedSolrParameterException extends Exception {
 

@@ -4,6 +4,9 @@ use com.ibm.streamsx.solr::SolrQuery ;
 
 composite SolrQuerySample
 {
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://localhost:8983/solr" );
+		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
 	graph
 		(stream<rstring queryLogic> Beacon_1_out0) as Beacon_1 = Beacon()
 		{
@@ -16,17 +19,17 @@ composite SolrQuerySample
 			param
 				period : 3.0 ;
 			output
-				Beacon_1_out0 : queryLogic = "q=*:*" ;
+				Beacon_1_out0 : queryLogic = "*:*" ;
 		}
 
 		(stream<rstring response> SolrQuery_2_out0) as SolrQuery_2 =
 			SolrQuery(Beacon_1_out0)
 		{
 			param 
-				solrURL : "http://g0601b02:8983/solr";
-				collection : "transcriptions";
+				solrURL : $solrServer;
+				collection : $solrCollection;
 				numberOfRows : 5; 
-				omitHeader : false;
+				omitHeader : true;
 				
 		}
 

@@ -1,4 +1,4 @@
-package com.ibm.streams.solr;
+package com.ibm.streamsx.solr;
 
 import java.io.IOException;
 import java.net.URL;
