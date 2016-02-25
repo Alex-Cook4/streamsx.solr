@@ -3,6 +3,7 @@ package com.ibm.streamsx.solr;
 
 
 import org.apache.log4j.Logger;
+import org.codehaus.jettison.json.JSONObject;
 
 import com.ibm.streams.operator.AbstractOperator;
 import com.ibm.streams.operator.OperatorContext;
@@ -26,7 +27,7 @@ import com.ibm.streams.operator.model.PrimitiveOperator;
 
 @Libraries("opt/downloaded/*")
 @PrimitiveOperator(name="SolrQuery", namespace="com.ibm.streamsx.solr",
-description="Java Operator SolrQuery")
+description=SolrQueryOper.DESCRIPTION)
 @InputPorts({@InputPortSet(description="Port that ingests tuples", cardinality=1, optional=false, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious), @InputPortSet(description="Optional input ports", optional=true, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious)})
 @OutputPorts({@OutputPortSet(description="Port that produces tuples", cardinality=1, optional=false, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating), @OutputPortSet(description="Optional output ports", optional=true, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating)})
 public class SolrQueryOper extends AbstractOperator {
@@ -38,13 +39,46 @@ public class SolrQueryOper extends AbstractOperator {
 	
 	private final Logger trace = Logger.getLogger(SolrQueryOper.class
 			.getCanonicalName());
-	private String solrURL = "http://localhost:8983/solr";
+	private String solrURL = "";
 	private String collection = "";
 	private String solrBaseURL;
 	
 	TupleAttribute<Tuple, String> queryAttribute;
 	TupleAttribute<Tuple, String> collectionAttribute;
-
+	
+	public static final String DESCRIPTION = "query field should look like the portion after q= in an"
+			+ " html query. We will handle the necessary escape characters.";
+	
+    @Parameter(optional = false)
+    public void setSolrURL(String value){
+    	solrURL = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setCollection(String value){
+    	collection = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setResponseFormat(String value){
+    	responseFormat = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setNumberOfRows(int value){
+    	numberOfRows = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setOmitHeader(boolean value){
+    	omitHeader = value;
+    }
+    
+    @Parameter(optional = true)
+    public void setFullQueryProvided(boolean value){
+    	fullQueryProvided = value;
+    }
+    
 	@Parameter(optional = true, description = "Incoming attribute to be used as the query string. Example: \\\"*:*\\\"")
     public void setQueryAttribute(TupleAttribute<Tuple, String> attributeName){
 		queryAttribute = attributeName;
@@ -66,7 +100,7 @@ public class SolrQueryOper extends AbstractOperator {
 		super.initialize(context);
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " initializing in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
         solrBaseURL = SolrUtils.getCollectionURL(solrURL, collection);
-        queryEngine = new SolrQueryEngine(solrURL);
+        queryEngine = new SolrQueryEngine(solrBaseURL);
 	}
 
     /**
@@ -96,19 +130,26 @@ public class SolrQueryOper extends AbstractOperator {
     	// Create a new tuple for output port 0
         StreamingOutput<OutputTuple> outStream = getOutput(0);
         OutputTuple outTuple = outStream.newTuple();
-        String queryString; 
+//        String queryString; 
         
         String queryLogic = tuple.getString(0);
         
-		if (!fullQueryProvided){
-			queryString = queryEngine.buildQuery(solrBaseURL, responseFormat, numberOfRows, omitHeader, queryLogic);//"http://g0601b02:8983/solr/transcriptions/select/?wt=xml&q=*:*%20AND%20starttime:[*%20TO%202016-09-09T9:23:43Z]&fl=id&rows=100";
-		} else {
-			queryString = queryLogic;
-		}
-		String queryResponse = queryEngine.sendQuery(collection, queryLogic);
-		trace.log(TraceLevel.INFO, queryResponse);    
+//		if (!fullQueryProvided){
+//			queryString = queryEngine.buildQuery(solrBaseURL, responseFormat, numberOfRows, omitHeader, queryLogic);//"http://g0601b02:8983/solr/transcriptions/select/?wt=xml&q=*:*%20AND%20starttime:[*%20TO%202016-09-09T9:23:43Z]&fl=id&rows=100";
+//		} else {
+//			queryString = queryLogic;
+//		}
+        
+        JSONObject queryResponse;
+        if (collectionAttribute != null){
+        	queryResponse = queryEngine.sendQuery(collectionAttribute.getValue(tuple), queryLogic);
+        } else {
+        	queryResponse = queryEngine.sendQuery(queryLogic);
+        }
+
+		trace.log(TraceLevel.INFO, queryResponse.toString());    
 		
-		outTuple.setString(0, queryResponse);
+		outTuple.setString(0, queryResponse.toString());
         outStream.submit(outTuple);
     }
     
@@ -124,36 +165,7 @@ public class SolrQueryOper extends AbstractOperator {
     	// For window markers, punctuate all output ports 
     	super.processPunctuation(stream, mark);
     }
-    
-    @Parameter(optional = true)
-    public void setSolrURL(String value){
-    	solrURL = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setCollection(String value){
-    	collection = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setResponseFormat(String value){
-    	responseFormat = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setNumberOfRows(int value){
-    	numberOfRows = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setOmitHeader(boolean value){
-    	omitHeader = value;
-    }
-    
-    @Parameter(optional = true)
-    public void setFullQueryProvided(boolean value){
-    	fullQueryProvided = value;
-    }
+   
 
     /**
      * Shutdown this operator.
