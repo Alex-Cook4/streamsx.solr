@@ -8,35 +8,32 @@ composite SolrQuerySample
 		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://localhost:8983/solr" );
 		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
 	graph
-		(stream<rstring queryLogic> Beacon_1_out0) as Beacon_1 = Beacon()
+		stream<rstring solr_query> QueryBeacon = Beacon()
 		{
-			logic
-				state :
-				{
-					mutable int32 stateVariable = 0 ;
-				}
-
 			param
 				period : 3.0 ;
+				iterations : 10;
 			output
-				Beacon_1_out0 : queryLogic = "*:*" ;
+				QueryBeacon : solr_query = "q=*:*&sort=id%20asc&fq=cat:electronics&fl=id,cat,name" ;
 		}
-
-		(stream<rstring response> SolrQuery_2_out0) as SolrQuery_2 =
-			SolrQuery(Beacon_1_out0)
+		
+		//URL to do same query: http://localhost:8983/solr/techproducts/select/?q=*:*&sort=id%20asc&fq=cat:electronics&fl=id,cat,name&rows=5
+		stream<rstring solr_response> SolrQueryResponse =
+			SolrQuery(QueryBeacon)
 		{
 			param 
 				solrURL : $solrServer;
 				collection : $solrCollection;
 				numberOfRows : 5; 
+				responseFormat : "json";
 				omitHeader : true;
 				
 		}
 
-		() as Custom_3 = Custom(SolrQuery_2_out0)
+		() as Custom_3 = Custom(SolrQueryResponse)
 		{
-			logic onTuple SolrQuery_2_out0 : {
-				printStringLn(response);
+			logic onTuple SolrQueryResponse : {
+				printStringLn(solr_response);
 			}
 		}
 
