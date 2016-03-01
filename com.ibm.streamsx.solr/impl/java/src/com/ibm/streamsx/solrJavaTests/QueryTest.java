@@ -1,23 +1,27 @@
 package com.ibm.streamsx.solrJavaTests;
 
-import org.codehaus.jettison.json.JSONObject;
+
+import java.net.URI;
 
 import com.ibm.streamsx.solr.SolrQueryEngine; 
 
 public class QueryTest { 
 
 	private static SolrQueryEngine queryEngine;
-	private static String solrURL = "http://g0601b02.pok.hpc-ng.ibm.com:8984/solr/techproducts/";
-	private static String queryLogic = "/select/?wt=xml&q=cat=electronics&fq=cat:*&fl=id,cat&rows=200";
+	private static String solrURL = "http://g0601b02.pok.hpc-ng.ibm.com:8984/solr/techproducts";
+	private static String queryLogic = "*:*&sort=id%20asc&fq=cat:electronics&fl=id,cat,name";
 	/**
-	 * @param args
+	 * @param args 
 	 * @throws Exception 
 	 */
 	public static void main(String[] args) throws Exception {
-		queryEngine = new SolrQueryEngine(solrURL );
+		queryEngine = new SolrQueryEngine( );
 		
 		System.out.println(queryLogic);
-		JSONObject queryResponse = queryEngine.sendQuery(queryLogic);
+		
+		String queryString = queryEngine.buildQuery(solrURL, queryLogic);
+		System.out.println(queryString);
+		String queryResponse = queryEngine.sendQuery(queryString);
 		System.out.println(queryResponse);
 	}
 

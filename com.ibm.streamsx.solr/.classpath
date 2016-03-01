@@ -31,7 +31,5 @@
 	<classpathentry kind="lib" path="opt/downloaded/lucene-analyzers-common-5.5.0.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/lucene-core-5.5.0.jar"/>
 	<classpathentry kind="lib" path="opt/downloaded/solr-solrj-5.5.0.jar"/>
-	<classpathentry kind="lib" path="opt/downloaded/jettison-1.3.7.jar"/>
-	<classpathentry kind="lib" path="opt/downloaded/stax-api-1.0.1.jar"/>
 	<classpathentry kind="output" path="impl/java/bin"/>
 </classpath>

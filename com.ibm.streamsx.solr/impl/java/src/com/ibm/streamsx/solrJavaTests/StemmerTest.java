@@ -1,8 +1,10 @@
-package com.ibm.streamsx.solr;
+package com.ibm.streamsx.solrJavaTests;
 
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+
+import com.ibm.streamsx.solr.SolrStemmerEngine;
 
 public class StemmerTest {
 	static SolrStemmerEngine solrStemmerEngine;

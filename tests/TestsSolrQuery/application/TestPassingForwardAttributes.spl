@@ -1,0 +1,54 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrQuery ;
+
+composite TestPassingForwardAttributes
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer",
+			"http://localhost:8983/solr") ;
+		expression<rstring> $solrCollection :
+			getSubmissionTimeValue("solrCollection", "techproducts") ;
+		type MergedType = tuple<rstring random_string, int32 random_int, float64 random_float, rstring solr_query, rstring myCollection>;
+	graph
+		stream<rstring solr_query, rstring myCollection> GeneratedQuery =
+			QueryGeneratorWithCollectionAttr()
+		{
+			param
+				query : "q=*:*&fq={!cache=false}inStock:true&fl=id,inStock,price" ;
+				collection : $solrCollection ; 
+		}
+
+		stream<rstring random_string, int32 random_int, float64 random_float>
+			ExtraAttributes = Beacon()
+		{
+			param
+				period : 1.0;
+				iterations : 10; 
+			output
+				ExtraAttributes : random_string =(rstring) random(), random_int =(int32)
+					random(), random_float =(float64) random() ;
+		}
+
+		(stream<rstring random_string, int32 random_int, float64 random_float, rstring solr_response> SolrQuery_2_out0) as SolrQuery_2 =
+			SolrQuery(Barrier_5_out0 as inPort0Alias)
+		{
+			param
+				solrURL : $solrServer ;
+				collectionAttribute : myCollection ;
+				numberOfRows : 3;
+		}
+
+		() as ResponsePrinter = OutputWriter(SolrQuery_2_out0)
+		{
+		}
+
+		(stream<MergedType> Barrier_5_out0) as
+			Barrier_5 = Barrier(GeneratedQuery as inputStream1 ; ExtraAttributes as
+			inputStream2)
+		{
+		}
+
+}
+
+

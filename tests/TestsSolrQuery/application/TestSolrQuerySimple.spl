@@ -1,0 +1,38 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrQuery ;
+
+composite TestSolrQuerySimple
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer","http://localhost:8983/solr" );
+		expression<rstring> $solrCollection : getSubmissionTimeValue("solrCollection","techproducts" );
+	graph
+		stream<rstring solr_query> GeneratedQuery = QueryGenerator()
+		{
+			param 
+				query : "q=*:*&sort=id%20asc&fq=cat:electronics&fl=id,cat,name" ;
+		}
+
+		(stream<rstring solr_response> SolrQuery_2_out0) as SolrQuery_2 =
+			SolrQuery(GeneratedQuery) 
+		{
+			param 
+				solrURL : $solrServer;
+				collection : $solrCollection;
+				numberOfRows : 3;
+		}
+		
+		() as ResponsePrinter = OutputWriter(SolrQuery_2_out0)
+		{
+		}
+
+//		() as ResponsePrinter2 = Custom(SolrQuery_2_out0)
+//		{
+//			logic onTuple SolrQuery_2_out0 : {
+//				printStringLn(solr_response);
+//			}
+//		}
+
+}
+

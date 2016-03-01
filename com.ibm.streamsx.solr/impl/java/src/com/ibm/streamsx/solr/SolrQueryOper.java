@@ -2,18 +2,19 @@
 package com.ibm.streamsx.solr;
 
 
+import java.io.IOException;
+
 import org.apache.log4j.Logger;
-import org.codehaus.jettison.json.JSONObject;
 
 import com.ibm.streams.operator.AbstractOperator;
 import com.ibm.streams.operator.OperatorContext;
 import com.ibm.streams.operator.OutputTuple;
-import com.ibm.streams.operator.StreamingData.Punctuation;
 import com.ibm.streams.operator.StreamingInput;
 import com.ibm.streams.operator.StreamingOutput;
 import com.ibm.streams.operator.Tuple;
 import com.ibm.streams.operator.TupleAttribute;
 import com.ibm.streams.operator.log4j.TraceLevel;
+import com.ibm.streams.operator.model.DefaultAttribute;
 import com.ibm.streams.operator.model.InputPortSet;
 import com.ibm.streams.operator.model.InputPortSet.WindowMode;
 import com.ibm.streams.operator.model.InputPortSet.WindowPunctuationInputMode;
@@ -29,10 +30,11 @@ import com.ibm.streams.operator.model.PrimitiveOperator;
 @PrimitiveOperator(name="SolrQuery", namespace="com.ibm.streamsx.solr",
 description=SolrQueryOper.DESCRIPTION)
 @InputPorts({@InputPortSet(description="Port that ingests tuples", cardinality=1, optional=false, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious), @InputPortSet(description="Optional input ports", optional=true, windowingMode=WindowMode.NonWindowed, windowPunctuationInputMode=WindowPunctuationInputMode.Oblivious)})
-@OutputPorts({@OutputPortSet(description="Port that produces tuples", cardinality=1, optional=false, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating), @OutputPortSet(description="Optional output ports", optional=true, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating)})
+@OutputPorts({@OutputPortSet(description="Port that produces tuples", cardinality=1, optional=false, windowPunctuationOutputMode=WindowPunctuationOutputMode.Generating), 
+	@OutputPortSet(description="Error Port" , optional=true, cardinality = 1)})
 public class SolrQueryOper extends AbstractOperator {
-	private String responseFormat = "json";
-	private int numberOfRows = 1;
+	private String responseFormat = "";
+	private int numberOfRows = -1;
 	private boolean omitHeader = true;
 	private boolean fullQueryProvided = false;
 	private SolrQueryEngine queryEngine;
@@ -43,86 +45,87 @@ public class SolrQueryOper extends AbstractOperator {
 	private String collection = "";
 	private String solrBaseURL;
 	
-	TupleAttribute<Tuple, String> queryAttribute;
-	TupleAttribute<Tuple, String> collectionAttribute;
+	private TupleAttribute<Tuple, String> queryAttribute;
+	private TupleAttribute<Tuple, String> collectionAttribute;
+	private String responseAttribute = "solr_response";
+	private boolean validErrorPort;
+	private final int ERROR_PORT = 1;
 	
-	public static final String DESCRIPTION = "query field should look like the portion after q= in an"
-			+ " html query. We will handle the necessary escape characters.";
+	public static final String DESCRIPTION = "This operator is used for querying a Solr server."
+			+ "One of the incoming attributes must be a solr query (default: solr_query). The query field should look like the portion after \\\"/select/?\\\" in an"
+			+ " html query. Special characters must correctly be converted by the user--queries should look like queries made from a browser. For example, spaces should be encoded as "
+			+ "'%20'. '=' and '&' characters should remain as is. See sample and tests for query examples. "
+			+ "A Solr collection must either be specified as an operator parameter, or it can also "
+			+ "be sent in as an attribute with each tuple. The response of the Solr query is placed as an output value (default solr_response). "
+			+ "The resonseFormat, numberOfRows, and omitHeader parameters are for convenience and can be instead provided "
+			+ "as part of the solr_query. The parameter values will be overridden by query specifications (meaning rows=5 in the query overrides "
+			+ "numberOfRows=15 as a parameter). Unrelated incoming attributes with corresponding output attributes will be forwarded along with the solr_response. "
+			+ "There is an optional error port where failed queries and their error messages can be sent.";
 	
-    @Parameter(optional = false)
+    @Parameter(optional = false, description = "URL of Solr server. Example: http://localhost:8983/solr")
     public void setSolrURL(String value){
     	solrURL = value;
     }
     
-    @Parameter(optional = true)
+    @Parameter(optional = true, description = "Solr collection to add documents to.")
     public void setCollection(String value){
     	collection = value;
     }
     
-    @Parameter(optional = true)
+    @Parameter(optional = true, description = "Format of query response: xml or json (solr default: xml).")
     public void setResponseFormat(String value){
     	responseFormat = value;
     }
     
-    @Parameter(optional = true)
+    @Parameter(optional = true, description = "Number of rows to return in the response. Solr default: 10.")
     public void setNumberOfRows(int value){
     	numberOfRows = value;
     }
     
-    @Parameter(optional = true)
+    @Parameter(optional = true, description = "Whether or not to omit response header. Default is true.")
     public void setOmitHeader(boolean value){
     	omitHeader = value;
     }
     
-    @Parameter(optional = true)
+    @Parameter(optional = true, description = "Allows the user to specify the entire HTTP GET query. If set to true, all other parameters are ignored. "
+    		+ "Default: false. ")
     public void setFullQueryProvided(boolean value){
     	fullQueryProvided = value;
     }
     
-	@Parameter(optional = true, description = "Incoming attribute to be used as the query string. Example: \\\"*:*\\\"")
-    public void setQueryAttribute(TupleAttribute<Tuple, String> attributeName){
+    @DefaultAttribute("solr_query")
+	@Parameter(optional = true, description = "Incoming attribute to be used as the query string. Default: solr_query. Example of the actual string: \\\"*:*\\\"")
+    public void setSolrQueryAttribute(TupleAttribute<Tuple, String> attributeName){
 		queryAttribute = attributeName;
     }
 	
-	@Parameter(optional = true, description = "Incoming attribute to be used as the collection name. This allows for querying different collection in every query.")
+	@Parameter(optional = true, description = "Outgoing attribute to be used as the Solr query response. Default: solr_response.")
+    public void setSolrResponseAttribute(String attributeName){
+		responseAttribute = attributeName;
+    }
+    
+	@Parameter(optional = true, description = "Incoming attribute to be used as the collection name. This allows for querying a different collection in each query.")
     public void setCollectionAttribute(TupleAttribute<Tuple, String> attributeName){
 		collectionAttribute = attributeName;
     }
 	
-    /**
-     * Initialize this operator. Called once before any tuples are processed.
-     * @param context OperatorContext for this operator.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
 	@Override
 	public synchronized void initialize(OperatorContext context)
 			throws Exception {
 		super.initialize(context);
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " initializing in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
         solrBaseURL = SolrUtils.getCollectionURL(solrURL, collection);
-        queryEngine = new SolrQueryEngine(solrBaseURL);
+        queryEngine = new SolrQueryEngine();
+        
+        validErrorPort = SolrUtils.operatorContainsValidErrorPort(context, ERROR_PORT);
+        
+        if (!validErrorPort){
+        	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
+        } else {
+        	trace.log(TraceLevel.INFO, "A valid error port was found to submit errors to.");
+        }
 	}
 
-    /**
-     * Notification that initialization is complete and all input and output ports 
-     * are connected and ready to receive and submit tuples.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
-    @Override
-    public synchronized void allPortsReady() throws Exception {
-        OperatorContext context = getOperatorContext();
-        Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " all ports are ready in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );
-    }
-
-    /**
-     * Process an incoming tuple that arrived on the specified port.
-     * <P>
-     * Copy the incoming tuple to a new output tuple and submit to the output port. 
-     * </P>
-     * @param inputStream Port the tuple is arriving on.
-     * @param tuple Object representing the incoming tuple.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
     @Override
     public final void process(StreamingInput<Tuple> inputStream, Tuple tuple)
             throws Exception {
@@ -130,47 +133,40 @@ public class SolrQueryOper extends AbstractOperator {
     	// Create a new tuple for output port 0
         StreamingOutput<OutputTuple> outStream = getOutput(0);
         OutputTuple outTuple = outStream.newTuple();
-//        String queryString; 
-        
-        String queryLogic = tuple.getString(0);
-        
-//		if (!fullQueryProvided){
-//			queryString = queryEngine.buildQuery(solrBaseURL, responseFormat, numberOfRows, omitHeader, queryLogic);//"http://g0601b02:8983/solr/transcriptions/select/?wt=xml&q=*:*%20AND%20starttime:[*%20TO%202016-09-09T9:23:43Z]&fl=id&rows=100";
-//		} else {
-//			queryString = queryLogic;
-//		}
-        
-        JSONObject queryResponse;
+        String queryString; 
+        outTuple.assign(tuple);
+        String queryLogic = queryAttribute.getValue(tuple);
         if (collectionAttribute != null){
-        	queryResponse = queryEngine.sendQuery(collectionAttribute.getValue(tuple), queryLogic);
-        } else {
-        	queryResponse = queryEngine.sendQuery(queryLogic);
+        	solrBaseURL = SolrUtils.getCollectionURL(solrURL, collectionAttribute.getValue(tuple));
         }
-
-		trace.log(TraceLevel.INFO, queryResponse.toString());    
+        
+		if (!fullQueryProvided){
+			queryString = queryEngine.buildQuery(solrBaseURL, responseFormat, numberOfRows, omitHeader, queryLogic);//"http://g0601b02:8983/solr/transcriptions/select/?wt=xml&q=*:*%20AND%20starttime:[*%20TO%202016-09-09T9:23:43Z]&fl=id&rows=100";
+		} else {
+			queryString = queryLogic;
+		}
+        
+        String queryResponse = "";
+        
+        try {
+        	if(trace.isInfoEnabled())
+    			trace.log(TraceLevel.INFO, "Query String: " + queryString); 
+        	
+        	queryResponse = queryEngine.sendQuery(queryString);
+        	
+        	if(trace.isInfoEnabled())
+    			trace.log(TraceLevel.INFO, queryResponse);    
+    		//only submit if we don't catch a bad response
+    		outTuple.setString(responseAttribute, queryResponse);
+            outStream.submit(outTuple);
+        } catch (IOException e ){
+        	e.printStackTrace();
+    		trace.log(TraceLevel.ERROR, "Query " + queryString + " failed with error: " +  e.toString());
+        	SolrUtils.submitToErrorPort(this, ERROR_PORT, "Query " + queryString + " failed with error: " +  e.toString(), validErrorPort);
+        }
 		
-		outTuple.setString(0, queryResponse.toString());
-        outStream.submit(outTuple);
-    }
-    
-    /**
-     * Process an incoming punctuation that arrived on the specified port.
-     * @param stream Port the punctuation is arriving on.
-     * @param mark The punctuation mark
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
-    @Override
-    public void processPunctuation(StreamingInput<Tuple> stream,
-    		Punctuation mark) throws Exception {
-    	// For window markers, punctuate all output ports 
-    	super.processPunctuation(stream, mark);
     }
    
-
-    /**
-     * Shutdown this operator.
-     * @throws Exception Operator failure, will cause the enclosing PE to terminate.
-     */
     public synchronized void shutdown() throws Exception {
         OperatorContext context = getOperatorContext();
         Logger.getLogger(this.getClass()).trace("Operator " + context.getName() + " shutting down in PE: " + context.getPE().getPEId() + " in Job: " + context.getPE().getJobId() );        // Must call super.shutdown()

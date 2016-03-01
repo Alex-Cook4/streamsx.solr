@@ -1,0 +1,4 @@
+output/TestSolrQuerySimple/application.TestSolrQuerySimple.adl
+output/TestCollectionAsAttribute/application.TestCollectionAsAttribute.adl
+output/TestPassingForwardAttributes/application.TestPassingForwardAttributes.adl
+output/TestQueryError/application.TestQueryError.adl

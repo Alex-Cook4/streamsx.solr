@@ -1,4 +1,3 @@
 com.ibm.streamsx.solr/1.0.0
 spl/1.2.1
-SolrQuerySample/1.0.0
-SolrQueryTests/1.0.0
+TestsSolrDocumentAdd/1.0.0

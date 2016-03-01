@@ -1,0 +1,34 @@
+namespace application ;
+
+use com.ibm.streamsx.solr::SolrQuery ;
+
+composite TestCollectionAsAttribute
+{
+	param
+		expression<rstring> $solrServer : getSubmissionTimeValue("solrServer",
+			"http://localhost:8983/solr") ;
+		expression<rstring> $solrCollection :
+			getSubmissionTimeValue("solrCollection", "techproducts") ;
+	graph
+		stream<rstring solr_query, rstring myCollection> GeneratedQuery = QueryGeneratorWithCollectionAttr()
+		{
+			param
+				query : "q=*:*&fq=weight:[0%20TO%2010]&fl=id,weight,price" ;//return documents with weight 0-10
+				collection : $solrCollection; 
+		}
+
+		(stream<rstring solr_response> SolrQuery_2_out0) as SolrQuery_2 =
+			SolrQuery(GeneratedQuery)
+		{
+			param
+				solrURL : $solrServer ;
+				collectionAttribute : myCollection ;
+		}
+
+		() as ResponsePrinter = OutputWriter(SolrQuery_2_out0)
+		{
+		}
+
+}
+
+

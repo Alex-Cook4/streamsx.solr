@@ -59,6 +59,8 @@ public class SolrDocumentSink extends AbstractOperator {
 	private boolean inputMapExists = true;
 	private ModifiableSolrParams requestParams;
 	
+	private final int ERROR_PORT = 0; 
+	
 	public static final String DESCRIPTION = 
 			"This operator is used for writing tuples as Solr documents to a Solr collection. It takes in a set of attributes and a map<ustring,ustring> on its import port. "
 			+ "Those attributes are committed to a Solr collection on a configurable interval (time or number of tuples). "
@@ -124,16 +126,12 @@ public class SolrDocumentSink extends AbstractOperator {
         	inputMapExists = false;
         }
         
-        if (!context.getStreamingOutputs().isEmpty()){
-        	StreamingOutput<OutputTuple> output = context.getStreamingOutputs().get(0);
-        	if (output.getStreamSchema().getAttribute(0).getType().getMetaType() ==  MetaType.RSTRING){
-        		validErrorPort = true;
-        		trace.log(TraceLevel.INFO, "Found a valid error port to submit errors to.");
-        	} 
-        }
+        validErrorPort = SolrUtils.operatorContainsValidErrorPort(context, ERROR_PORT);
         
         if (!validErrorPort){
         	trace.log(TraceLevel.WARN, "No valid error port was found to submit errors to. Attribute must be of type rstring");
+        } else {
+        	trace.log(TraceLevel.INFO, "A valid error port was found to submit errors to.");
         }
 
         resetDocBuffer();        		
@@ -211,7 +209,7 @@ public class SolrDocumentSink extends AbstractOperator {
 	    	} catch (Exception e) {
 	    		e.printStackTrace();
 	    		trace.log(TraceLevel.ERROR, "Failed to add unique identifier field: " + e.getMessage());
-	    		submitToErrorPort(e.getMessage());
+	    		SolrUtils.submitToErrorPort(this, ERROR_PORT, e.getMessage(), validErrorPort);
 	    	}
 		} else {
 			if (trace.isInfoEnabled()){
@@ -232,7 +230,7 @@ public class SolrDocumentSink extends AbstractOperator {
 		} catch (Exception e){
 			e.printStackTrace();
 			trace.log(TraceLevel.ERROR, "Failed to add field to document: " + e.getMessage());
-			submitToErrorPort(e.getMessage());
+			SolrUtils.submitToErrorPort(this, ERROR_PORT, e.getMessage(), validErrorPort);
 		}
 	}
 
@@ -243,7 +241,7 @@ public class SolrDocumentSink extends AbstractOperator {
 			} catch (Exception e){
 				e.printStackTrace();
 				trace.log(TraceLevel.ERROR, "Error while sending documents: " + e.getMessage() );
-				submitToErrorPort(e.getMessage() + "\n docBuffer: " + docBuffer.toString());
+				SolrUtils.submitToErrorPort(this, ERROR_PORT, e.getMessage() + "\n docBuffer: " + docBuffer.toString(), validErrorPort);
 			}
 			resetDocBuffer();
 		} else {
@@ -275,19 +273,6 @@ public class SolrDocumentSink extends AbstractOperator {
 		if(trace.isInfoEnabled())
 			trace.log(TraceLevel.INFO, "Attempting to commit. Solr Client add response status: " + response.toString());
 		solrClient.commit();
-	}
-    
-    private void submitToErrorPort(String error) {
-		if (validErrorPort) {
-			StreamingOutput<OutputTuple> streamingOutput = getOutput(0);
-			OutputTuple otup = streamingOutput.newTuple();
-			otup.setString(0, error);
-			try {
-				streamingOutput.submit(otup);
-			} catch (Exception e1) {
-				e1.printStackTrace();
-			}
-		}
 	}
     
     class CommitAndClearAgedDocBuffer extends TimerTask {

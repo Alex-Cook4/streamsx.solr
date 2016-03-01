@@ -1,0 +1,41 @@
+namespace application;
+
+composite QueryGenerator(output Out_0){
+	param
+		expression<rstring> $query : "*:*";
+	graph 
+		stream<rstring solr_query> Out_0 = Beacon()
+		{
+			param
+				period : 1.0 ;
+				iterations : 10 ; 
+			output
+				Out_0 : solr_query = $query ;
+		}
+}
+
+composite QueryGeneratorWithCollectionAttr(output Out_0){
+	param
+		expression<rstring> $query : "*:*";
+		expression<rstring> $collection : "techproducts";
+	graph 
+		stream<rstring solr_query, rstring myCollection> Out_0 = Beacon()
+		{
+			param
+				period : 1.0 ;
+				iterations : 10 ; 
+			output
+				Out_0 : solr_query = $query, myCollection = $collection ;
+		}
+}
+
+composite OutputWriter(input In_0){
+
+	graph 
+		() as ResponsePrinter2 = Custom(In_0)
+			{
+				logic onTuple In_0 : {
+					printStringLn( (rstring) (In_0));
+				}
+			}
+}
