@@ -1,4 +1,4 @@
-#Wed Feb 24 09:49:03 EST 2016
+#Tue Mar 01 07:32:54 EST 2016
 copytosourcelist=
 hreftargetslist=dita/tk$com.ibm.streamsx.solr/op$com.ibm.streamsx.solr$SolrDocumentSink.xml,dita/tk$com.ibm.streamsx.solr/tk$com.ibm.streamsx.solr.xml,dita/tk$com.ibm.streamsx.solr/op$com.ibm.streamsx.solr$SolrStemmer.xml,dita/tk$com.ibm.streamsx.solr/op$com.ibm.streamsx.solr$SolrQuery.xml,dita/toolkits/ix$Namespace.xml,dita/toolkits/ix$Operator.xml,dita/tk$com.ibm.streamsx.solr/ns$com.ibm.streamsx.solr.xml,dita/toolkits/toolkits.xml,dita/tk$com.ibm.streamsx.solr/ix$Operator.xml,dita/tk$com.ibm.streamsx.solr/ix$Namespace.xml,dita/references/OperatorModel.xml
 fullditatopicfile=fullditatopic.list

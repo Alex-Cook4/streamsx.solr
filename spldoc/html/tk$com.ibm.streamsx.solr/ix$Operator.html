@@ -38,7 +38,7 @@
 
   <dt class="dt dlterm"><a class="xref" href="op$com.ibm.streamsx.solr$SolrQuery.html">SolrQuery</a></dt>
 
-  <dd class="dd">Java Operator SolrQuery</dd>
+  <dd class="dd">This operator is used for querying a Solr server.One of the incoming attributes must be a solr query (default: solr_query). The query field should look like the portion after "/select/?" in an html query. Special characters must correctly be converted by the user--queries should look like queries made from a browser. For example, spaces should be encoded as '%20'. '=' and '&amp;' characters should remain as is. See sample and tests for query examples. A Solr collection must either be specified as an operator parameter, or it can also be sent in as an attribute with each tuple. The response of the Solr query is placed as an output value (default solr_response). The resonseFormat, numberOfRows, and omitHeader parameters are for convenience and can be instead provided as part of the solr_query. The parameter values will be overridden by query specifications (meaning rows=5 in the query overrides numberOfRows=15 as a parameter). Unrelated incoming attributes with corresponding output attributes will be forwarded along with the solr_response. There is an optional error port where failed queries and their error messages can be sent.</dd>
 
 
 
